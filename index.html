@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>FORGE</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- GRAIN OVERLAY -->
+  <div class="grain"></div>
+
+  <!-- APP WRAPPER -->
+  <div id="app">
+
+    <!-- ════════════════════════════════════════
+         VIEW: ONBOARDING
+    ════════════════════════════════════════ -->
+    <div id="view-onboarding" class="view active">
+      <div class="onboard-container">
+        <div class="forge-logo">
+          <span class="logo-text">FORGE</span>
+          <span class="logo-sub">EXECUTION ENGINE</span>
+          <span class="logo-version">v11.0</span>
+        </div>
+        <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
+
+        <div class="onboard-form">
+          <button id="btn-google-signin" class="btn-google">
+            <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            CONTINUE WITH GOOGLE
+          </button>
+          <div id="google-signin-error" class="auth-error hidden"></div>
+          <div id="auth-loading" class="auth-loading hidden">
+            <span class="auth-loading-text">CONNECTING...</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: DASHBOARD (Home)
+    ════════════════════════════════════════ -->
+    <div id="view-dashboard" class="view">
+
+      <!-- Header Bar -->
+      <header class="top-bar">
+        <div class="user-rank">
+          <span id="display-rank" class="rank-label">INITIATE</span>
+          <span id="display-name" class="user-name">—</span>
+        </div>
+        <div class="mode-switcher">
+          <button class="mode-btn active" id="mode-forge">FORGE</button>
+          <button class="mode-btn" id="mode-plan">PLAN</button>
+        </div>
+        <div class="top-bar-right">
+          <div class="coins-chip" id="coins-chip">
+            <span class="coins-icon">◎</span>
+            <span id="display-coins">0</span>
+          </div>
+          <div class="streak-chip" id="streak-chip">
+            <span class="streak-icon">◈</span>
+            <span id="display-streak">0</span>
+            <span class="freeze-divider" id="freeze-divider" style="display:none">·</span>
+            <span class="freeze-indicator" id="freeze-indicator" style="display:none">🧊<span id="display-freezes">0</span></span>
+          </div>
+          <button class="icon-btn" id="btn-open-drawer" title="Menu">≡</button>
+        </div>
+      </header>
+
+      <!-- Nav Drawer -->
+      <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+      <div id="nav-drawer" class="nav-drawer">
+        <div class="drawer-header">
+          <span class="drawer-title">FORGE</span>
+          <button class="icon-btn" id="btn-close-drawer">✕</button>
+        </div>
+        <nav class="drawer-nav">
+          <button class="drawer-nav-item" id="drawer-tasks">
+            <span class="drawer-nav-icon">⊞</span>
+            <div class="drawer-nav-text">
+              <span class="drawer-nav-label">TASK QUEUE</span>
+              <span class="drawer-nav-sub">Manage objectives</span>
+            </div>
+            <span class="drawer-nav-arrow">→</span>
+          </button>
+          <button class="drawer-nav-item" id="drawer-history">
+            <span class="drawer-nav-icon">◫</span>
+            <div class="drawer-nav-text">
+              <span class="drawer-nav-label">COMBAT LOG</span>
+              <span class="drawer-nav-sub">Session history & heatmap</span>
+            </div>
+            <span class="drawer-nav-arrow">→</span>
+          </button>
+          <button class="drawer-nav-item" id="drawer-shop">
+            <span class="drawer-nav-icon">◈</span>
+            <div class="drawer-nav-text">
+              <span class="drawer-nav-label">ARMORY</span>
+              <span class="drawer-nav-sub">Themes & upgrades</span>
+            </div>
+            <span class="drawer-nav-arrow">→</span>
+          </button>
+          <button class="drawer-nav-item" id="drawer-settings">
+            <span class="drawer-nav-icon">⚙</span>
+            <div class="drawer-nav-text">
+              <span class="drawer-nav-label">SYSTEM CONFIG</span>
+              <span class="drawer-nav-sub">Timer, audio, account</span>
+            </div>
+            <span class="drawer-nav-arrow">→</span>
+          </button>
+        </nav>
+        <div class="drawer-footer">
+          <span id="drawer-version" class="drawer-version">FORGE v11.0</span>
+        </div>
+      </div>
+
+      <!-- XP Bar -->
+      <div class="xp-section">
+        <div class="xp-labels">
+          <span class="xp-label">LVL <span id="display-level">1</span></span>
+          <span class="xp-current"><span id="display-xp">0</span> / <span id="display-xp-next">500</span> XP</span>
+        </div>
+        <div class="xp-bar-track">
+          <div class="xp-bar-fill" id="xp-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Today's Focus Block -->
+      <div class="focus-block">
+        <div class="focus-label">NEXT OBJECTIVE</div>
+        <div id="current-task-display" class="task-display">
+          <span class="task-empty-state">No tasks queued.<br/>Add one below.</span>
+        </div>
+        <button id="btn-start-session" class="btn-primary btn-start" disabled>
+          <span class="btn-start-text">▶ START SESSION</span>
+        </button>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <span class="stat-val" id="stat-sessions">0</span>
+          <span class="stat-lbl">SESSIONS</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val" id="stat-today">0</span>
+          <span class="stat-lbl">TODAY</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val" id="stat-streak-longest">0</span>
+          <span class="stat-lbl">BEST STREAK</span>
+        </div>
+      </div>
+
+      <!-- Active Sprint Indicator -->
+      <div id="sprint-indicator" class="sprint-indicator hidden">
+        <span class="sprint-indicator-label">⚡ ACTIVE SPRINT</span>
+        <span id="sprint-indicator-text" class="sprint-indicator-text"></span>
+        <span id="sprint-indicator-progress" class="sprint-indicator-progress"></span>
+      </div>
+
+      <!-- Quick Add Task -->
+      <div class="quick-add-section">
+        <div class="section-label">QUICK ADD TASK</div>
+        <div class="quick-add-row">
+          <input type="text" id="input-task" class="text-input task-input" placeholder="what needs to be done?" maxlength="80" />
+        </div>
+        <div class="pillar-chips-row" id="pillar-chips-row">
+          <!-- Rendered dynamically from state.pillars -->
+        </div>
+        <div class="difficulty-row">
+          <span class="diff-label">DIFFICULTY</span>
+          <div class="diff-buttons">
+            <button class="diff-btn active" data-diff="1">EASY</button>
+            <button class="diff-btn" data-diff="1.5">MEDIUM</button>
+            <button class="diff-btn" data-diff="2">HARD</button>
+          </div>
+          <button id="btn-add-task" class="btn-secondary">+ ADD</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: INTENTION (pre-session)
+    ════════════════════════════════════════ -->
+    <div id="view-intention" class="view">
+      <div class="intention-container">
+        <div class="intention-header">
+          <span class="intention-label">MISSION BRIEF</span>
+          <!-- Selected task display -->
+          <div id="intention-task-display" class="intention-task-display">
+            <div class="intention-task-info">
+              <span id="intention-task-badge" class="task-tag-badge other">OTHER</span>
+              <span id="intention-task-name" class="intention-task">—</span>
+            </div>
+            <button id="btn-switch-task" class="btn-switch-task">⟳ SWITCH</button>
+          </div>
+          <!-- Task switcher dropdown — hidden by default -->
+          <div id="task-switcher" class="task-switcher hidden"></div>
+        </div>
+
+        <!-- Session Timer Picker — right here, no navigation needed -->
+        <div class="session-timer-picker">
+          <div class="field-label">SESSION LENGTH</div>
+          <div class="session-presets">
+            <button class="session-preset-btn" data-mins="25">25m</button>
+            <button class="session-preset-btn active" data-mins="50">50m</button>
+            <button class="session-preset-btn" data-mins="90">90m</button>
+            <div class="session-custom-wrap">
+              <input type="number" id="input-custom-mins" class="custom-mins-input" min="5" max="180" placeholder="?m" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Goal link — optional -->
+        <div class="intention-goal-row">
+          <span class="field-label">LINKED GOAL <span class="form-label-optional">(optional)</span></span>
+          <div id="intention-goal-selector" class="intention-goal-selector">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <div class="intention-form">
+          <label class="field-label">DECLARE YOUR INTENTION</label>
+          <textarea id="input-intention" class="intention-input" placeholder="I will..." maxlength="120" rows="3"></textarea>
+          <div class="intention-hint">Be specific. "I will finish the collision system" beats "I will code."</div>
+        </div>
+        <div class="intention-actions">
+          <button id="btn-intention-cancel" class="btn-ghost">CANCEL</button>
+          <button id="btn-intention-confirm" class="btn-primary">LOCK IN ▶</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: SESSION (Active Timer)
+    ════════════════════════════════════════ -->
+    <div id="view-session" class="view">
+      <div class="session-container">
+
+        <div class="session-top">
+          <span id="session-mode-label" class="session-mode">FOCUS</span>
+          <span id="session-task-label" class="session-task-name">—</span>
+        </div>
+
+        <!-- Timer Ring -->
+        <div class="timer-ring-container">
+          <svg class="timer-svg" viewBox="0 0 200 200">
+            <circle class="timer-track" cx="100" cy="100" r="88" />
+            <circle class="timer-progress" id="timer-progress-ring" cx="100" cy="100" r="88"
+              stroke-dasharray="553"
+              stroke-dashoffset="0" />
+          </svg>
+          <div class="timer-display">
+            <span id="timer-minutes" class="timer-min">50</span>
+            <span class="timer-colon">:</span>
+            <span id="timer-seconds" class="timer-sec">00</span>
+          </div>
+        </div>
+
+        <!-- Intention reminder -->
+        <div class="session-intention-bar">
+          <span class="intention-reminder-label">INTENTION</span>
+          <span id="session-intention-display" class="intention-reminder-text">—</span>
+        </div>
+
+        <!-- Hold overlay — shown when session is on hold -->
+        <div id="hold-overlay" class="hold-overlay hidden">
+          <div class="hold-label">SESSION ON HOLD</div>
+          <div class="hold-countdown" id="hold-countdown">05:00</div>
+          <div class="hold-sub">Auto-resumes when timer hits zero</div>
+          <button id="btn-resume-session" class="btn-primary btn-resume">▶ RESUME</button>
+        </div>
+
+        <!-- Session Controls -->
+        <div class="session-controls" id="session-controls">
+          <button id="btn-abandon-session" class="btn-ghost btn-danger">✕ ABANDON</button>
+          <button id="btn-hold-session" class="btn-ghost btn-hold">⏸ HOLD</button>
+          <button id="btn-complete-session" class="btn-primary btn-complete">✓ COMPLETE</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: BREAK
+    ════════════════════════════════════════ -->
+    <div id="view-break" class="view">
+      <div class="break-container">
+        <div class="break-label">BREAK</div>
+        <div class="break-timer-display">
+          <span id="break-minutes">10</span>:<span id="break-seconds">00</span>
+        </div>
+        <div class="break-tip" id="break-tip">Step away from the screen.</div>
+        <button id="btn-skip-break" class="btn-ghost">SKIP BREAK</button>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: REWARD (XP popup)
+    ════════════════════════════════════════ -->
+    <div id="view-reward" class="view">
+      <div class="reward-container">
+        <div class="reward-top">SESSION COMPLETE</div>
+        <div class="xp-earned-display">
+          +<span id="reward-xp">0</span> <span class="xp-unit">XP</span>
+        </div>
+        <div id="reward-coins-earned" class="coins-earned hidden">
+          +<span id="reward-coins">0</span> <span class="coins-unit">◎</span>
+        </div>
+        <div id="reward-bonus-label" class="bonus-label hidden">⚡ FOCUS BONUS</div>
+        <div id="levelup-banner" class="levelup-banner hidden">
+          <span class="levelup-text">LEVEL UP</span>
+          <span id="levelup-new-level" class="levelup-num">2</span>
+        </div>
+        <div id="reward-rank-change" class="rank-change hidden"></div>
+        <div class="reward-stats">
+          <div class="reward-stat">
+            <span class="reward-stat-val" id="reward-streak">0</span>
+            <span class="reward-stat-lbl">DAY STREAK</span>
+          </div>
+          <div class="reward-stat">
+            <span class="reward-stat-val" id="reward-total">0</span>
+            <span class="reward-stat-lbl">TOTAL SESSIONS</span>
+          </div>
+          <div class="reward-stat">
+            <span class="reward-stat-val" id="reward-coins-total">0</span>
+            <span class="reward-stat-lbl">◎ COINS</span>
+          </div>
+        </div>
+        <!-- Task bonus — shown after TASK DONE is clicked -->
+        <div id="task-bonus-display" class="task-bonus-display hidden">
+          <span class="task-bonus-label">⚡ TASK COMPLETE</span>
+          <span class="task-bonus-xp">+<span id="task-bonus-xp-val">0</span> XP</span>
+        </div>
+
+        <!-- Task completion decision -->
+        <div class="task-decision" id="task-decision">
+          <div class="task-decision-label">IS THE TASK DONE?</div>
+          <div class="task-decision-btns">
+            <button id="btn-task-continue" class="btn-ghost">↺ CONTINUE TASK</button>
+            <button id="btn-task-done" class="btn-primary">✓ TASK DONE</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: TASK LIST
+    ════════════════════════════════════════ -->
+    <div id="view-tasks" class="view">
+      <div class="tasks-container">
+        <div class="tasks-header">
+          <button id="btn-tasks-back" class="icon-btn">← BACK</button>
+          <span class="tasks-title">TASK QUEUE</span>
+        </div>
+        <div id="task-list" class="task-list"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         VIEW: SETTINGS
+    ════════════════════════════════════════ -->
+    <div id="view-settings" class="view">
+      <div class="settings-container">
+        <div class="settings-header">
+          <button id="btn-settings-back" class="icon-btn">← BACK</button>
+          <span class="settings-title">SYSTEM CONFIG</span>
+        </div>
+
+        <!-- Timer Presets -->
+        <div class="settings-section">
+          <div class="settings-section-label">SESSION PRESETS</div>
+          <div class="preset-grid">
+            <button class="preset-btn" data-work="25" data-break="5">
+              <span class="preset-name">SPRINT</span>
+              <span class="preset-times">25 / 5</span>
+            </button>
+            <button class="preset-btn" data-work="50" data-break="10">
+              <span class="preset-name">FORGE</span>
+              <span class="preset-times">50 / 10</span>
+            </button>
+            <button class="preset-btn" data-work="90" data-break="20">
+              <span class="preset-name">DEEP</span>
+              <span class="preset-times">90 / 20</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Timer -->
+        <div class="settings-section">
+          <div class="settings-section-label">CUSTOM TIMER</div>
+          <div class="custom-timer-row">
+            <div class="timer-adjust-block">
+              <span class="timer-adjust-label">FOCUS (min)</span>
+              <div class="timer-adjust-controls">
+                <button class="adjust-btn" id="btn-work-minus">−</button>
+                <span class="timer-adjust-val" id="display-work-minutes">50</span>
+                <button class="adjust-btn" id="btn-work-plus">+</button>
+              </div>
+            </div>
+            <div class="timer-divider">|</div>
+            <div class="timer-adjust-block">
+              <span class="timer-adjust-label">BREAK (min)</span>
+              <div class="timer-adjust-controls">
+                <button class="adjust-btn" id="btn-break-minus">−</button>
+                <span class="timer-adjust-val" id="display-break-minutes">10</span>
+                <button class="adjust-btn" id="btn-break-plus">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="custom-timer-hint">Min: 5 min focus · 1 min break</div>
+        </div>
+
+        <!-- Sound Toggle -->
+        <div class="settings-section">
+          <div class="settings-section-label">AUDIO</div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">Sound Effects</span>
+              <span class="toggle-desc">Session cues, XP sounds, alerts</span>
+            </div>
+            <button class="toggle-btn" id="btn-sound-toggle">
+              <span id="sound-toggle-label">ON</span>
+            </button>
+          </div>
+          <button class="btn-ghost test-sound-btn" id="btn-test-sound">▶ TEST SOUND</button>
+        </div>
+
+        <!-- Current Config Display -->
+        <div class="settings-section">
+          <div class="settings-section-label">ACTIVE CONFIG</div>
+          <div class="active-config">
+            <span class="config-line">FOCUS <span id="config-work">50</span> MIN</span>
+            <span class="config-sep">·</span>
+            <span class="config-line">BREAK <span id="config-break">10</span> MIN</span>
+          </div>
+        </div>
+
+        <!-- Summary Day -->
+        <div class="settings-section">
+          <div class="settings-section-label">WEEKLY SUMMARY DAY</div>
+          <div class="summary-day-picker" id="summary-day-picker">
+            <button class="summary-day-btn" data-day="1">MON</button>
+            <button class="summary-day-btn" data-day="2">TUE</button>
+            <button class="summary-day-btn" data-day="3">WED</button>
+            <button class="summary-day-btn" data-day="4">THU</button>
+            <button class="summary-day-btn" data-day="5">FRI</button>
+            <button class="summary-day-btn" data-day="6">SAT</button>
+            <button class="summary-day-btn active" data-day="0">SUN</button>
+          </div>
+          <div class="settings-hint">Summary appears on first app open of this day</div>
+        </div>
+
+        <button id="btn-settings-save" class="btn-primary">SAVE CONFIG</button>
+
+        <!-- Account Section -->
+        <div class="settings-section" style="margin-top:8px;">
+          <div class="settings-section-label">ACCOUNT</div>
+
+          <div class="account-info">
+            <div class="account-row">
+              <span class="account-label">OPERATIVE</span>
+              <span class="account-val" id="account-name-display">—</span>
+            </div>
+            <div class="account-row">
+              <span class="account-label">EMAIL</span>
+              <span class="account-val" id="account-email-display">—</span>
+            </div>
+            <div class="account-row">
+              <span class="account-label">SYNC</span>
+              <span class="account-val" id="account-sync-status">—</span>
+            </div>
+          </div>
+
+          <!-- Change Name -->
+          <div class="account-action-block">
+            <label class="field-label">CHANGE NAME</label>
+            <div class="account-input-row">
+              <input type="text" id="input-change-name" class="text-input" placeholder="new name" maxlength="20" />
+              <button id="btn-change-name" class="btn-secondary">SAVE</button>
+            </div>
+          </div>
+
+          <!-- Danger Zone -->
+          <div class="danger-zone">
+            <div class="danger-label">DANGER ZONE</div>
+            <button id="btn-reset-data" class="btn-ghost btn-danger btn-full">⚠ RESET ALL DATA</button>
+            <button id="btn-signout" class="btn-ghost btn-full" style="margin-top:8px;">EXIT / SIGN OUT</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════
+         VIEW: HISTORY
+    ════════════════════════════════════════ -->
+    <div id="view-history" class="view">
+      <div class="history-container">
+
+        <!-- Header -->
+        <div class="history-header">
+          <button id="btn-history-back" class="icon-btn">← BACK</button>
+          <span class="history-title">COMBAT LOG</span>
+        </div>
+
+        <!-- Heatmap section -->
+        <div class="heatmap-section">
+          <div class="heatmap-month-labels" id="heatmap-months"></div>
+          <div class="heatmap-body">
+            <div class="heatmap-day-labels">
+              <span>M</span>
+              <span>T</span>
+              <span>W</span>
+              <span>T</span>
+              <span>F</span>
+              <span>S</span>
+              <span>S</span>
+            </div>
+            <div class="heatmap-grid" id="heatmap-grid"></div>
+          </div>
+          <div class="heatmap-legend">
+            <span class="legend-label">LESS</span>
+            <span class="legend-cell" data-level="0"></span>
+            <span class="legend-cell" data-level="1"></span>
+            <span class="legend-cell" data-level="2"></span>
+            <span class="legend-cell" data-level="3"></span>
+            <span class="legend-cell" data-level="4"></span>
+            <span class="legend-label">MORE</span>
+          </div>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="history-stats-strip">
+          <div class="history-stat">
+            <span class="history-stat-val" id="hist-total-hours">0</span>
+            <span class="history-stat-lbl">HOURS</span>
+          </div>
+          <div class="history-stat">
+            <span class="history-stat-val" id="hist-total-sessions">0</span>
+            <span class="history-stat-lbl">SESSIONS</span>
+          </div>
+          <div class="history-stat">
+            <span class="history-stat-val" id="hist-total-xp">0</span>
+            <span class="history-stat-lbl">TOTAL XP</span>
+          </div>
+          <div class="history-stat">
+            <span class="history-stat-val" id="hist-best-day">0</span>
+            <span class="history-stat-lbl">BEST DAY XP</span>
+          </div>
+        </div>
+
+        <!-- Selected day log -->
+        <div class="history-day-log">
+          <div class="history-day-header">
+            <span class="history-day-label" id="history-day-label">TODAY</span>
+            <span class="history-day-xp" id="history-day-xp"></span>
+          </div>
+          <div id="history-session-list" class="history-session-list">
+            <div class="history-empty">No sessions recorded for this day.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════
+         VIEW: WEEKLY SUMMARY
+    ════════════════════════════════════════ -->
+    <div id="view-summary" class="view">
+      <div class="summary-container">
+
+        <!-- Top label -->
+        <div class="summary-week-label" id="summary-week-label">WEEK 10 · 2026</div>
+
+        <!-- Main title -->
+        <div class="summary-headline">
+          <div class="summary-title-line">WEEKLY</div>
+          <div class="summary-title-line accent">DEBRIEF</div>
+        </div>
+
+        <!-- Hero XP number -->
+        <div class="summary-hero">
+          <div class="summary-hero-xp" id="summary-hero-xp">0</div>
+          <div class="summary-hero-label">XP EARNED THIS WEEK</div>
+        </div>
+
+        <!-- Stats grid -->
+        <div class="summary-stats-grid">
+          <div class="summary-stat-card">
+            <div class="summary-stat-val" id="sum-sessions">0</div>
+            <div class="summary-stat-lbl">SESSIONS</div>
+          </div>
+          <div class="summary-stat-card">
+            <div class="summary-stat-val" id="sum-hours">0</div>
+            <div class="summary-stat-lbl">HOURS</div>
+          </div>
+          <div class="summary-stat-card">
+            <div class="summary-stat-val" id="sum-tasks">0</div>
+            <div class="summary-stat-lbl">TASKS DONE</div>
+          </div>
+          <div class="summary-stat-card">
+            <div class="summary-stat-val" id="sum-streak">0</div>
+            <div class="summary-stat-lbl">DAY STREAK</div>
+          </div>
+        </div>
+
+        <!-- Best day highlight -->
+        <div class="summary-best-day" id="summary-best-day-block">
+          <div class="summary-best-label">⚡ BEST DAY</div>
+          <div class="summary-best-val" id="sum-best-day-name">—</div>
+          <div class="summary-best-xp" id="sum-best-day-xp">0 XP</div>
+        </div>
+
+        <!-- Motivational line -->
+        <div class="summary-quote" id="summary-quote"></div>
+
+        <!-- Dismiss -->
+        <button id="btn-summary-dismiss" class="btn-primary summary-dismiss-btn">
+          ENTER THE WEEK ▶
+        </button>
+
+      </div>
+    </div>
+
+
+    <!-- ════════════════════════════════════════
+         VIEW: SHOP (ARMORY)
+    ════════════════════════════════════════ -->
+    <div id="view-shop" class="view">
+      <div class="shop-container">
+
+        <div class="shop-header">
+          <button id="btn-shop-back" class="icon-btn">← BACK</button>
+          <span class="shop-title">ARMORY</span>
+          <div class="shop-coins-display">
+            <span class="shop-coins-icon">◎</span>
+            <span id="shop-coins-val">0</span>
+          </div>
+        </div>
+
+        <!-- Active theme indicator -->
+        <div class="shop-active-theme">
+          <span class="shop-active-label">ACTIVE THEME</span>
+          <span id="shop-active-name" class="shop-active-name">FORGE</span>
+        </div>
+
+        <!-- THEMES SECTION -->
+        <div class="shop-section-label">THEMES</div>
+        <div class="shop-items-grid" id="shop-themes-grid">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- CONSUMABLES SECTION -->
+        <div class="shop-section-label" style="margin-top:8px;">CONSUMABLES</div>
+        <div class="shop-items-list" id="shop-consumables-list">
+          <!-- Rendered by JS -->
+        </div>
+
+      </div>
+    </div>
+
+  <!-- Custom confirm modal -->
+  <div id="forge-confirm-backdrop" class="forge-confirm-backdrop hidden">
+    <div class="forge-confirm-modal">
+      <div class="forge-confirm-title" id="forge-confirm-title">CONFIRM</div>
+      <div class="forge-confirm-msg" id="forge-confirm-msg"></div>
+      <div class="forge-confirm-btns">
+        <button id="forge-confirm-cancel" class="btn-ghost">CANCEL</button>
+        <button id="forge-confirm-ok" class="btn-primary">CONFIRM</button>
+      </div>
+    </div>
+  </div>
+
+
+    <!-- ════════════════════════════════════════
+         VIEW: PLAN MODE
+    ════════════════════════════════════════ -->
+    <div id="view-plan" class="view">
+      <div class="plan-container">
+
+        <div class="plan-header">
+          <div class="plan-header-top">
+            <div class="mode-switcher">
+              <button class="mode-btn" id="plan-mode-forge">FORGE</button>
+              <button class="mode-btn active" id="plan-mode-plan">PLAN</button>
+            </div>
+          </div>
+          <span class="plan-title">PLAN MODE</span>
+          <div class="plan-tab-bar">
+            <button class="plan-tab active" id="plan-tab-pillars">PILLARS</button>
+            <button class="plan-tab" id="plan-tab-warroom">WAR ROOM</button>
+          </div>
+        </div>
+
+        <!-- ── PILLARS VIEW (default) ── -->
+        <div id="plan-view-pillars">
+          <div class="plan-section-label">PILLARS OF FOCUS</div>
+          <div class="plan-pillars-list" id="plan-pillars-list"></div>
+          <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
+          <div id="pillar-form" class="pillar-form hidden">
+            <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">ICON</span>
+              <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
+            </div>
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">COLOR</span>
+              <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-pillar-save" class="btn-primary">SAVE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── GOALS VIEW ── -->
+        <div id="plan-view-goals" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-goals-back">← PILLARS</button>
+            <div class="plan-goals-pillar-label" id="goals-pillar-label">
+              <span id="goals-pillar-icon"></span>
+              <span id="goals-pillar-name"></span>
+            </div>
+          </div>
+          <div class="plan-section-label">GOALS</div>
+          <div class="plan-goals-list" id="plan-goals-list"></div>
+          <button class="plan-add-pillar-btn" id="btn-add-goal">+ ADD GOAL</button>
+          <div id="goal-form" class="goal-form hidden">
+            <input type="text" id="goal-title-input" class="text-input" placeholder="GOAL TITLE" maxlength="60" />
+            <div class="goal-form-row">
+              <span class="pillar-form-label">DEADLINE</span>
+              <input type="date" id="goal-deadline-input" class="text-input date-input" />
+            </div>
+            <div class="goal-form-row">
+              <span class="pillar-form-label">DURATION</span>
+              <div class="week-count-row">
+                <button class="week-count-btn" data-delta="-1">−</button>
+                <span id="goal-week-count-display">4 weeks</span>
+                <button class="week-count-btn" data-delta="1">+</button>
+              </div>
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-goal-save" class="btn-primary">SAVE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── GOAL DETAIL VIEW (weeks + tasks) ── -->
+        <div id="plan-view-weeks" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-weeks-back">← GOALS</button>
+            <div class="plan-goals-pillar-label" id="weeks-goal-label">
+              <span id="weeks-goal-title"></span>
+            </div>
+            <div class="goal-progress-pill" id="weeks-goal-progress"></div>
+          </div>
+          <div id="weeks-content">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- ── WAR ROOM VIEW ── -->
+        <div id="plan-view-warroom" class="hidden">
+          <div id="warroom-content"></div>
+        </div>
+
+        <!-- Move task modal (mobile) -->
+        <div id="move-task-modal" class="move-task-modal hidden">
+          <div class="move-task-backdrop" id="move-task-backdrop"></div>
+          <div class="move-task-sheet">
+            <div class="move-task-title">MOVE TASK TO</div>
+            <div id="move-task-options" class="move-task-options"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /app -->
+
+  <!-- Version stamp -->
+  <div class="version-stamp">FORGE v11.0</div>
+
+  <!-- XP Float Particle -->
+  <div id="xp-particle" class="xp-particle hidden"></div>
+
+  <!-- Shop toast -->
+  <div id="shop-toast" class="shop-toast"></div>
+
+  <!-- Scripts -->
+  <!-- Firebase SDKs (compat version — no build tools needed) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script src="storage.js"></script>
+  <script src="xp.js"></script>
+  <script src="timer.js"></script>
+  <script src="sound.js"></script>
+  <script src="firebase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log('FORGE: SW registered'))
+        .catch(e => console.log('FORGE: SW failed', e));
+    }
+  </script>
+
+</body>
+</html>
