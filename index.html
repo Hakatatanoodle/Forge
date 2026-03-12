@@ -28,7 +28,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v10.1</span>
+          <span class="logo-version">v10.6</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -123,7 +123,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v10.1</span>
+          <span id="drawer-version" class="drawer-version">FORGE v10.6</span>
         </div>
       </div>
 
@@ -163,6 +163,13 @@
           <span class="stat-val" id="stat-streak-longest">0</span>
           <span class="stat-lbl">BEST STREAK</span>
         </div>
+      </div>
+
+      <!-- Active Sprint Indicator -->
+      <div id="sprint-indicator" class="sprint-indicator hidden">
+        <span class="sprint-indicator-label">⚡ ACTIVE SPRINT</span>
+        <span id="sprint-indicator-text" class="sprint-indicator-text"></span>
+        <span id="sprint-indicator-progress" class="sprint-indicator-progress"></span>
       </div>
 
       <!-- Quick Add Task -->
@@ -216,6 +223,14 @@
             <div class="session-custom-wrap">
               <input type="number" id="input-custom-mins" class="custom-mins-input" min="5" max="180" placeholder="?m" />
             </div>
+          </div>
+        </div>
+
+        <!-- Goal link — optional -->
+        <div class="intention-goal-row">
+          <span class="field-label">LINKED GOAL <span class="form-label-optional">(optional)</span></span>
+          <div id="intention-goal-selector" class="intention-goal-selector">
+            <!-- Rendered by JS -->
           </div>
         </div>
 
@@ -689,30 +704,97 @@
             </div>
           </div>
           <span class="plan-title">PLAN MODE</span>
-          <span class="plan-subtitle">EARLY ACCESS — MORE COMING</span>
+          <div class="plan-tab-bar">
+            <button class="plan-tab active" id="plan-tab-pillars">PILLARS</button>
+            <button class="plan-tab" id="plan-tab-warroom">WAR ROOM</button>
+          </div>
         </div>
 
-        <!-- PILLARS SECTION -->
-        <div class="plan-section-label">PILLARS OF FOCUS</div>
-        <div class="plan-pillars-list" id="plan-pillars-list">
-          <!-- Rendered by JS -->
-        </div>
-        <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
+        <!-- ── PILLARS VIEW (default) ── -->
+        <div id="plan-view-pillars">
+          <div class="plan-section-label">PILLARS OF FOCUS</div>
+          <div class="plan-pillars-list" id="plan-pillars-list">
+            <!-- Rendered by JS -->
+          </div>
+          <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
 
-        <!-- ADD/EDIT PILLAR INLINE FORM -->
-        <div id="pillar-form" class="pillar-form hidden">
-          <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
-          <div class="pillar-color-row">
-            <span class="pillar-form-label">ICON</span>
-            <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
+          <!-- ADD/EDIT PILLAR INLINE FORM -->
+          <div id="pillar-form" class="pillar-form hidden">
+            <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">ICON</span>
+              <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
+            </div>
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">COLOR</span>
+              <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-pillar-save" class="btn-primary">SAVE</button>
+            </div>
           </div>
-          <div class="pillar-color-row">
-            <span class="pillar-form-label">COLOR</span>
-            <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
+        </div>
+
+        <!-- ── PILLAR DETAIL VIEW (goals) ── -->
+        <div id="plan-view-goals" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-goals-back">← PILLARS</button>
+            <div class="plan-goals-pillar-label" id="goals-pillar-label">
+              <span id="goals-pillar-icon"></span>
+              <span id="goals-pillar-name"></span>
+            </div>
           </div>
-          <div class="pillar-form-btns">
-            <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
-            <button id="btn-pillar-save" class="btn-primary">SAVE</button>
+
+          <div class="plan-section-label">GOALS</div>
+          <div class="plan-goals-list" id="plan-goals-list">
+            <!-- Rendered by JS -->
+          </div>
+          <button class="plan-add-pillar-btn" id="btn-add-goal">+ ADD GOAL</button>
+
+          <!-- ADD/EDIT GOAL INLINE FORM -->
+          <div id="goal-form" class="goal-form hidden">
+            <input type="text" id="goal-title-input" class="text-input" placeholder="GOAL TITLE" maxlength="60" />
+            <div class="goal-form-row">
+              <span class="pillar-form-label">DEADLINE</span>
+              <input type="date" id="goal-deadline-input" class="text-input date-input" />
+            </div>
+            <div class="goal-form-row">
+              <span class="pillar-form-label">SESSION TARGET <span class="form-label-optional">(optional)</span></span>
+              <input type="number" id="goal-sessions-input" class="text-input" placeholder="e.g. 20" min="1" max="999" />
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-goal-save" class="btn-primary">SAVE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SPRINT VIEW (goal → sprints) ── -->
+        <div id="plan-view-sprint" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-sprint-back">← GOALS</button>
+            <div class="plan-goals-pillar-label" id="sprint-goal-label">
+              <span id="sprint-goal-title"></span>
+            </div>
+          </div>
+
+          <!-- Active sprint -->
+          <div class="plan-section-label">CURRENT SPRINT</div>
+          <div id="sprint-active-area">
+            <!-- Rendered by JS -->
+          </div>
+
+          <!-- Past sprints -->
+          <div class="plan-section-label" id="sprint-history-label" style="display:none">PAST SPRINTS</div>
+          <div id="sprint-history-list"></div>
+
+        </div>
+
+        <!-- ── WAR ROOM VIEW ── -->
+        <div id="plan-view-warroom" class="hidden">
+          <div id="warroom-content">
+            <!-- Rendered by JS -->
           </div>
         </div>
 
@@ -722,7 +804,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v10.1</div>
+  <div class="version-stamp">FORGE v10.6</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>

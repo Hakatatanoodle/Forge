@@ -207,6 +207,28 @@
       chip.classList.remove('at-risk', 'frozen');
     }
 
+    // Active sprint indicator
+    const allActiveSprints = (state.sprints || []).filter(s => s.status === 'active');
+    const indicator = $('sprint-indicator');
+    if (allActiveSprints.length && indicator) {
+      const firstSprint = allActiveSprints[0];
+      const sprintGoal  = (state.goals || []).find(g => g.id === firstSprint.goalId);
+      const weekStart   = (() => {
+        const d = new Date(); d.setHours(0,0,0,0);
+        d.setDate(d.getDate() - d.getDay()); return d.toISOString();
+      })();
+      const done = (state.sessions || []).filter(s =>
+        s.goalId === firstSprint.goalId && s.startTime >= weekStart
+      ).length;
+      $('sprint-indicator-text').textContent = firstSprint.focus.length > 50
+        ? firstSprint.focus.substring(0, 50) + '…'
+        : firstSprint.focus;
+      $('sprint-indicator-progress').textContent = `${done}/${firstSprint.sessionsTarget} sessions`;
+      indicator.classList.remove('hidden');
+    } else if (indicator) {
+      indicator.classList.add('hidden');
+    }
+
     // Coins
     $('display-coins').textContent = user.coins || 0;
 
@@ -263,6 +285,7 @@
   // TASK MANAGEMENT
   // ══════════════════════════════════════════
   let selectedDifficulty = 1.0;
+  let _selectedPillar = 'other'; // set properly after state loads
 
   function addTask() {
     const input = $('input-task');
@@ -412,6 +435,10 @@
     renderIntentionTask();
     closeSwitcher();
 
+    // Reset and render goal selector
+    sessionContext.goalId = null;
+    _renderGoalSelector(task ? task.tag : null);
+
     showView('intention');
     setTimeout(() => $('input-intention').focus(), 300);
   }
@@ -481,6 +508,7 @@
 
     sessionContext.intention  = intention;
     sessionContext.startTime  = new Date().toISOString();
+    // goalId already set by _renderGoalSelector selection
 
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
 
@@ -863,9 +891,193 @@
     '#ff9800', '#b39ddb'
   ];
 
+  // ── Goal selector for intention screen ──
+  function _renderGoalSelector(pillarId) {
+    const el = $('intention-goal-selector');
+    if (!el) return;
+
+    const goals = (state.goals || []).filter(g => g.status === 'active');
+    if (!goals.length) {
+      el.innerHTML = `<span class="goal-selector-empty">No active goals — add some in PLAN MODE</span>`;
+      return;
+    }
+
+    // Sort: pillar match first
+    const sorted = [
+      ...goals.filter(g => g.pillarId === pillarId),
+      ...goals.filter(g => g.pillarId !== pillarId)
+    ];
+
+    el.innerHTML = `
+      <div class="goal-selector-none ${!sessionContext.goalId ? 'selected' : ''}" id="goal-sel-none">
+        NONE
+      </div>
+      ${sorted.map(g => {
+        const pillar = getPillarById(g.pillarId);
+        const isSelected = sessionContext.goalId === g.id;
+        return `<div class="goal-selector-chip ${isSelected ? 'selected' : ''}"
+                     data-goal-id="${g.id}"
+                     style="--pillar-color:${pillar.color}">
+                  ${pillar.icon} ${escHtml(g.title)}
+                </div>`;
+      }).join('')}`;
+
+    // Bind selection
+    el.querySelectorAll('.goal-selector-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        sessionContext.goalId = chip.dataset.goalId;
+        _renderGoalSelector(pillarId);
+      });
+    });
+    el.querySelector('#goal-sel-none').addEventListener('click', () => {
+      sessionContext.goalId = null;
+      _renderGoalSelector(pillarId);
+    });
+  }
+
+  // ── WAR ROOM ──
+  function renderWarRoom() {
+    const container = $('warroom-content');
+    const pillars   = state.pillars || [];
+    const goals     = state.goals   || [];
+    const sprints   = state.sprints || [];
+    const sessions  = state.sessions || [];
+
+    if (!pillars.length) {
+      container.innerHTML = `<div class="plan-empty-state">No pillars yet.<br/>Add some in PILLARS tab.</div>`;
+      return;
+    }
+
+    const weekStart = (() => {
+      const d = new Date(); d.setHours(0,0,0,0);
+      d.setDate(d.getDate() - d.getDay());
+      return d.toISOString();
+    })();
+
+    container.innerHTML = pillars.map(pillar => {
+      const pillarGoals = goals.filter(g => g.pillarId === pillar.id && g.status === 'active');
+
+      const goalsHTML = pillarGoals.length ? pillarGoals.map(goal => {
+        const activeSprint = sprints.find(s => s.goalId === goal.id && s.status === 'active');
+        const daysLeft     = _daysUntil(goal.deadline);
+        const isOverdue    = daysLeft < 0;
+
+        let deadlineLabel;
+        if (isOverdue)         deadlineLabel = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
+        else if (daysLeft <= 7) deadlineLabel = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
+        else                   deadlineLabel = `<span class="goal-weeks">${_weeksUntil(goal.deadline)}w LEFT</span>`;
+
+        // Progress toward goal total
+        const sessionsDone = sessions.filter(s => s.goalId === goal.id).length;
+        const target       = goal.sessionsTarget || 0;
+        const progress     = target > 0 ? Math.min(100, Math.round(sessionsDone / target * 100)) : null;
+
+        // Sprint this week
+        let sprintHTML;
+        if (activeSprint) {
+          const weekDone = sessions.filter(s =>
+            s.goalId === goal.id && s.startTime >= weekStart
+          ).length;
+          const sprintPct = Math.min(100, Math.round(weekDone / activeSprint.sessionsTarget * 100));
+          sprintHTML = `
+            <div class="wr-sprint-row">
+              <span class="wr-sprint-focus">${escHtml(activeSprint.focus)}</span>
+              <span class="wr-sprint-count ${weekDone >= activeSprint.sessionsTarget ? 'target-hit' : ''}">
+                ${weekDone}/${activeSprint.sessionsTarget}
+              </span>
+            </div>
+            <div class="goal-progress-bar">
+              <div class="goal-progress-fill" style="width:${sprintPct}%;background:${pillar.color}"></div>
+            </div>`;
+        } else {
+          sprintHTML = `<div class="wr-no-sprint">No active sprint — <span class="wr-sprint-link" data-goal-id="${goal.id}">start one →</span></div>`;
+        }
+
+        return `
+          <div class="wr-goal-row ${isOverdue ? 'is-overdue' : ''}" data-goal-id="${goal.id}" style="--pillar-color:${pillar.color}">
+            <div class="wr-goal-top">
+              <span class="wr-goal-title">${escHtml(goal.title)}</span>
+              <div class="wr-goal-meta">
+                ${deadlineLabel}
+                ${target > 0 ? `<span class="goal-sessions-count">◎ ${sessionsDone}/${target}</span>` : ''}
+              </div>
+            </div>
+            ${progress !== null ? `
+            <div class="goal-progress-bar" style="margin-bottom:6px">
+              <div class="goal-progress-fill" style="width:${progress}%;background:${pillar.color}"></div>
+            </div>` : ''}
+            ${sprintHTML}
+          </div>`;
+      }).join('') : `<div class="wr-no-goals">No active goals</div>`;
+
+      return `
+        <div class="wr-pillar-block" style="--pillar-color:${pillar.color}">
+          <div class="wr-pillar-header">
+            <span class="wr-pillar-icon">${pillar.icon}</span>
+            <span class="wr-pillar-name">${pillar.name}</span>
+            <span class="wr-pillar-count">${pillarGoals.length} goal${pillarGoals.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="wr-goals-list">${goalsHTML}</div>
+        </div>`;
+    }).join('');
+
+    // Wire "start one →" links
+    container.querySelectorAll('.wr-sprint-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.stopPropagation();
+        const goal = goals.find(g => g.id === link.dataset.goalId);
+        if (!goal) return;
+        const pillar = getPillarById(goal.pillarId);
+        // navigate into goals view first, then sprint
+        _activePillarId = goal.pillarId;
+        $('goals-pillar-icon').textContent = pillar.icon;
+        $('goals-pillar-name').textContent = pillar.name;
+        openSprintView(goal.id, true);
+      });
+    });
+
+    // Wire goal row tap → sprint view
+    container.querySelectorAll('.wr-goal-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const goal = goals.find(g => g.id === row.dataset.goalId);
+        if (!goal) return;
+        _activePillarId = goal.pillarId;
+        openSprintView(goal.id, true);
+      });
+    });
+  }
+
+  // ── Plan sub-view navigation ──
+  let _activePillarId = null;
+
   function renderPlanMode() {
+    showPlanView('pillars');
     renderPillarList();
     renderPillarForm(null);
+  }
+
+  function showPlanView(view) {
+    // view: 'pillars' | 'goals' | 'sprint' | 'warroom'
+    $('plan-view-pillars').classList.toggle('hidden', view !== 'pillars');
+    $('plan-view-goals').classList.toggle('hidden',   view !== 'goals');
+    $('plan-view-sprint').classList.toggle('hidden',  view !== 'sprint');
+    $('plan-view-warroom').classList.toggle('hidden', view !== 'warroom');
+
+    // Update tab bar active state
+    const onPillarsTab = (view === 'pillars' || view === 'goals' || view === 'sprint');
+    $('plan-tab-pillars').classList.toggle('active', onPillarsTab);
+    $('plan-tab-warroom').classList.toggle('active', view === 'warroom');
+  }
+
+  function openPillarGoals(pillarId) {
+    _activePillarId = pillarId;
+    const pillar = getPillarById(pillarId);
+    $('goals-pillar-icon').textContent = pillar.icon;
+    $('goals-pillar-name').textContent = pillar.name;
+    renderGoalsList();
+    showPlanView('goals');
+    $('goal-form').classList.add('hidden');
+    $('btn-add-goal').classList.remove('hidden');
   }
 
   function renderPillarList() {
@@ -879,19 +1091,30 @@
 
     list.innerHTML = pillars.map((p, i) => {
       const taskCount = state.tasks.filter(t => t.tag === p.id && !t.completed).length;
+      const goalCount = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active').length;
       return `
         <div class="plan-pillar-item" style="--pillar-color:${p.color}" data-pillar-id="${p.id}">
           <div class="plan-pillar-icon">${p.icon}</div>
           <div class="plan-pillar-info">
             <div class="plan-pillar-name">${p.name}</div>
-            <div class="plan-pillar-meta">${taskCount} active task${taskCount !== 1 ? 's' : ''}</div>
+            <div class="plan-pillar-meta">${goalCount} goal${goalCount !== 1 ? 's' : ''} · ${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
           </div>
           <div class="plan-pillar-actions">
             <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
             <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
+            <span class="pillar-chevron">→</span>
           </div>
         </div>`;
     }).join('');
+
+    // Tap pillar to open goals
+    list.querySelectorAll('.plan-pillar-item').forEach(item => {
+      item.addEventListener('click', e => {
+        if (e.target.closest('.pillar-action-btn')) return; // don't trigger on edit/delete
+        Sound.click();
+        openPillarGoals(item.dataset.pillarId);
+      });
+    });
 
     list.querySelectorAll('.edit-pillar').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -919,6 +1142,313 @@
         });
       });
     });
+  }
+
+  // ── GOALS ──
+
+  let _editingGoalId = null;
+
+  function renderGoalsList() {
+    const list = $('plan-goals-list');
+    const goals = (state.goals || []).filter(g => g.pillarId === _activePillarId && g.status !== 'archived');
+
+    if (!goals.length) {
+      list.innerHTML = `<div class="plan-empty-state">No goals yet.<br/>Add one below.</div>`;
+      return;
+    }
+
+    list.innerHTML = goals.map(goal => {
+      const pillar       = getPillarById(goal.pillarId);
+      const weeksLeft    = _weeksUntil(goal.deadline);
+      const daysLeft     = _daysUntil(goal.deadline);
+      const isOverdue    = daysLeft < 0;
+      const sessionsDone = (state.sessions || []).filter(s => s.goalId === goal.id).length;
+      const target       = goal.sessionsTarget || 0;
+      const progress     = target > 0 ? Math.min(100, Math.round((sessionsDone / target) * 100)) : null;
+
+      let deadlineLabel;
+      if (isOverdue)       deadlineLabel = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
+      else if (daysLeft === 0) deadlineLabel = `<span class="goal-due-today">DUE TODAY</span>`;
+      else if (daysLeft <= 7)  deadlineLabel = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
+      else                     deadlineLabel = `<span class="goal-weeks">${weeksLeft}w LEFT</span>`;
+
+      const activeSprint = (state.sprints || []).find(s => s.goalId === goal.id && s.status === 'active');
+      return `
+        <div class="plan-goal-card ${isOverdue ? 'is-overdue' : ''} ${goal.status === 'completed' ? 'is-completed' : ''}"
+             data-goal-id="${goal.id}"
+             style="--pillar-color:${pillar.color}">
+          <div class="goal-card-top">
+            <div class="goal-card-title">${escHtml(goal.title)}</div>
+            <div class="goal-card-actions">
+              <button class="pillar-action-btn sprint-btn" data-id="${goal.id}" title="Sprints">
+                ${activeSprint ? '⚡ SPRINT' : 'SPRINT'}
+              </button>
+              <button class="pillar-action-btn edit-goal" data-id="${goal.id}">EDIT</button>
+              ${goal.status !== 'completed'
+                ? `<button class="pillar-action-btn complete-goal" data-id="${goal.id}">✓</button>`
+                : `<span class="goal-done-badge">DONE</span>`}
+              <button class="pillar-action-btn delete delete-goal" data-id="${goal.id}">✕</button>
+            </div>
+          </div>
+          <div class="goal-card-meta">
+            ${deadlineLabel}
+            <span class="goal-sessions-count">◎ ${sessionsDone}${target > 0 ? `/${target}` : ''} sessions</span>
+          </div>
+          ${progress !== null ? `
+          <div class="goal-progress-bar">
+            <div class="goal-progress-fill" style="width:${progress}%;background:${pillar.color}"></div>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    // Bind actions
+    list.querySelectorAll('.sprint-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        openSprintView(btn.dataset.id);
+      });
+    });
+
+    list.querySelectorAll('.edit-goal').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        openGoalForm(btn.dataset.id);
+      });
+    });
+
+    list.querySelectorAll('.complete-goal').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        forgeConfirm('Mark this goal as complete?', () => {
+          const g = state.goals.find(g => g.id === btn.dataset.id);
+          if (g) { g.status = 'completed'; saveState(); renderGoalsList(); Sound.levelUp(); }
+        });
+      });
+    });
+
+    list.querySelectorAll('.delete-goal').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        forgeConfirm('Delete this goal?', () => {
+          state.goals = state.goals.filter(g => g.id !== btn.dataset.id);
+          saveState(); renderGoalsList();
+        });
+      });
+    });
+  }
+
+  function openGoalForm(editId) {
+    _editingGoalId = editId || null;
+    const goal = editId ? state.goals.find(g => g.id === editId) : null;
+    $('goal-title-input').value    = goal ? goal.title : '';
+    $('goal-deadline-input').value = goal ? goal.deadline : '';
+    $('goal-sessions-input').value = goal ? (goal.sessionsTarget || '') : '';
+    $('goal-form').classList.remove('hidden');
+    $('btn-add-goal').classList.add('hidden');
+    $('goal-title-input').focus();
+  }
+
+  function _weeksUntil(dateStr) {
+    if (!dateStr) return '?';
+    const diff = new Date(dateStr) - new Date();
+    return Math.max(0, Math.ceil(diff / (7 * 24 * 60 * 60 * 1000)));
+  }
+
+  function _daysUntil(dateStr) {
+    if (!dateStr) return 999;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const d     = new Date(dateStr); d.setHours(0,0,0,0);
+    return Math.round((d - today) / (24 * 60 * 60 * 1000));
+  }
+
+  // ── SPRINT SYSTEM ──
+  let _activeGoalId = null;
+  let _sprintBackTarget = 'goals'; // 'goals' | 'warroom'
+
+  function openSprintView(goalId, fromWarRoom) {
+    _activeGoalId = goalId;
+    _sprintBackTarget = fromWarRoom ? 'warroom' : 'goals';
+    const goal = (state.goals || []).find(g => g.id === goalId);
+    if (!goal) return;
+    $('sprint-goal-title').textContent = goal.title;
+    renderSprintView();
+    showPlanView('sprint');
+  }
+
+  function renderSprintView() {
+    const goal    = (state.goals || []).find(g => g.id === _activeGoalId);
+    if (!goal) return;
+    const sprints = (state.sprints || []).filter(s => s.goalId === _activeGoalId);
+    const active  = sprints.find(s => s.status === 'active');
+    const past    = sprints.filter(s => s.status === 'completed')
+                           .sort((a,b) => a.weekNumber - b.weekNumber);
+    const pillar  = getPillarById(goal.pillarId);
+
+    // ── Active sprint area ──
+    const activeArea = $('sprint-active-area');
+    // Count sessions this week linked to this goal
+    const weekStart = (() => {
+      const d = new Date(); d.setHours(0,0,0,0);
+      d.setDate(d.getDate() - d.getDay()); // Sunday
+      return d.toISOString();
+    })();
+    const sprintDone = (state.sessions || []).filter(s =>
+      s.goalId === _activeGoalId && s.startTime >= weekStart
+    ).length;
+
+    if (active) {
+      activeArea.innerHTML = `
+        <div class="sprint-card active-sprint" style="--pillar-color:${pillar.color}">
+          <div class="sprint-card-top">
+            <span class="sprint-week-label">WEEK ${active.weekNumber}</span>
+            <span class="sprint-status-badge active">ACTIVE</span>
+          </div>
+          <div class="sprint-focus">${escHtml(active.focus)}</div>
+          <div class="sprint-meta">
+            <span class="sprint-target">🎯 ${sprintDone}/${active.sessionsTarget} sessions this week</span>
+            ${sprintDone >= active.sessionsTarget
+              ? `<span class="sprint-target" style="color:var(--green)">✓ TARGET HIT</span>`
+              : ''}
+          </div>
+          <div class="goal-progress-bar" style="margin-top:4px">
+            <div class="goal-progress-fill" style="width:${Math.min(100,Math.round(sprintDone/active.sessionsTarget*100))}%;background:${pillar.color}"></div>
+          </div>
+          <div class="sprint-actions">
+            <button class="btn-ghost sprint-edit-btn" data-id="${active.id}">EDIT</button>
+            <button class="btn-primary sprint-complete-btn" data-id="${active.id}">COMPLETE SPRINT ✓</button>
+          </div>
+        </div>`;
+
+      activeArea.querySelector('.sprint-complete-btn').addEventListener('click', () => {
+        forgeConfirm('Complete this sprint?', () => {
+          active.status = 'completed';
+          active.completedAt = new Date().toISOString();
+          saveState();
+          Sound.levelUp();
+          renderSprintView();
+        });
+      });
+
+      activeArea.querySelector('.sprint-edit-btn').addEventListener('click', () => {
+        openSprintForm(active.id);
+      });
+
+    } else {
+      activeArea.innerHTML = `
+        <div class="sprint-empty">
+          <div class="sprint-empty-text">No active sprint.<br/>Start one to define this week's focus.</div>
+          <button class="btn-primary" id="btn-start-sprint">⚡ START SPRINT</button>
+        </div>`;
+      $('btn-start-sprint').addEventListener('click', () => openSprintForm(null));
+    }
+
+    // ── Past sprints ──
+    const historyLabel = $('sprint-history-label');
+    const historyList  = $('sprint-history-list');
+    if (past.length) {
+      historyLabel.style.display = '';
+      historyList.innerHTML = past.map(s => `
+        <div class="sprint-card past-sprint" style="--pillar-color:${pillar.color}">
+          <div class="sprint-card-top">
+            <span class="sprint-week-label">WEEK ${s.weekNumber}</span>
+            <span class="sprint-status-badge done">DONE</span>
+          </div>
+          <div class="sprint-focus">${escHtml(s.focus)}</div>
+          <div class="sprint-meta">
+            <span class="sprint-target">🎯 ${s.sessionsTarget} sessions</span>
+            ${s.completedAt ? `<span class="sprint-date">${_localDateStr(new Date(s.completedAt))}</span>` : ''}
+          </div>
+        </div>`).join('');
+    } else {
+      historyLabel.style.display = 'none';
+      historyList.innerHTML = '';
+    }
+
+    // ── Sprint form (inline, hidden by default) ──
+    if (!$('sprint-form')) {
+      const form = document.createElement('div');
+      form.id = 'sprint-form';
+      form.className = 'sprint-form hidden';
+      form.innerHTML = `
+        <div class="sprint-form-inner">
+          <div class="sprint-form-week" id="sprint-form-week-label"></div>
+          <div class="goal-form-row">
+            <span class="pillar-form-label">THIS WEEK'S FOCUS</span>
+            <textarea id="sprint-focus-input" class="text-input sprint-textarea"
+              placeholder="What are you pushing forward this week?" maxlength="200" rows="3"></textarea>
+          </div>
+          <div class="goal-form-row">
+            <span class="pillar-form-label">SESSION TARGET</span>
+            <input type="number" id="sprint-sessions-input" class="text-input" placeholder="e.g. 5" min="1" max="99" />
+          </div>
+          <div class="pillar-form-btns">
+            <button id="btn-sprint-cancel" class="btn-ghost">CANCEL</button>
+            <button id="btn-sprint-save" class="btn-primary">LOCK IN</button>
+          </div>
+        </div>`;
+      $('plan-view-sprint').appendChild(form);
+
+      $('btn-sprint-cancel').addEventListener('click', () => {
+        $('sprint-form').classList.add('hidden');
+        $('sprint-active-area').classList.remove('hidden');
+      });
+
+      $('btn-sprint-save').addEventListener('click', saveSprintForm);
+    }
+  }
+
+  let _editingSprintId = null;
+
+  function openSprintForm(editId) {
+    _editingSprintId = editId;
+    const sprints = (state.sprints || []).filter(s => s.goalId === _activeGoalId);
+    const nextWeek = sprints.length > 0
+      ? Math.max(...sprints.map(s => s.weekNumber)) + (editId ? 0 : 1)
+      : 1;
+
+    const existing = editId ? sprints.find(s => s.id === editId) : null;
+    const weekNum  = existing ? existing.weekNumber : nextWeek;
+
+    $('sprint-form-week-label').textContent = `WEEK ${weekNum}`;
+    $('sprint-focus-input').value    = existing ? existing.focus : '';
+    $('sprint-sessions-input').value = existing ? existing.sessionsTarget : '';
+    $('sprint-form').classList.remove('hidden');
+    $('sprint-active-area').classList.add('hidden');
+    $('sprint-focus-input').focus();
+  }
+
+  function saveSprintForm() {
+    const focus    = $('sprint-focus-input').value.trim();
+    const sessions = parseInt($('sprint-sessions-input').value) || 0;
+
+    if (!focus)    { _showShopToast('DESCRIBE YOUR FOCUS'); return; }
+    if (!sessions) { _showShopToast('SET SESSION TARGET'); return; }
+
+    if (_editingSprintId) {
+      const s = state.sprints.find(s => s.id === _editingSprintId);
+      if (s) { s.focus = focus; s.sessionsTarget = sessions; }
+    } else {
+      if (!state.sprints) state.sprints = [];
+      const sprints  = state.sprints.filter(s => s.goalId === _activeGoalId);
+      const weekNum  = sprints.length > 0 ? Math.max(...sprints.map(s => s.weekNumber)) + 1 : 1;
+      state.sprints.push({
+        id: Storage.uuid(),
+        goalId: _activeGoalId,
+        weekNumber: weekNum,
+        focus,
+        sessionsTarget: sessions,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        completedAt: null
+      });
+    }
+
+    saveState();
+    Sound.click();
+    _editingSprintId = null;
+    $('sprint-form').classList.add('hidden');
+    $('sprint-active-area').classList.remove('hidden');
+    renderSprintView();
   }
 
   let _editingPillarIdx = null;
@@ -1650,7 +2180,7 @@
     }
 
     // Track selected pillar for task add
-    let _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
+    _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
     renderPillarChips();
 
     $('btn-add-task').addEventListener('click', addTask);
@@ -1791,6 +2321,80 @@
     });
 
     // ── SETTINGS ──
+    // ── PLAN MODE GOALS ──
+    // ── PLAN TABS ──
+    $('plan-tab-pillars').addEventListener('click', () => {
+      Sound.click();
+      showPlanView('pillars');
+      renderPillarList();
+    });
+
+    $('plan-tab-warroom').addEventListener('click', () => {
+      Sound.click();
+      renderWarRoom();
+      showPlanView('warroom');
+    });
+
+    $('btn-goals-back').addEventListener('click', () => {
+      Sound.click();
+      showPlanView('pillars');
+      renderPillarList();
+    });
+
+    $('btn-sprint-back').addEventListener('click', () => {
+      Sound.click();
+      // If coming from war room, go back there; else go to goals
+      if (_sprintBackTarget === 'warroom') {
+        renderWarRoom();
+        showPlanView('warroom');
+      } else {
+        showPlanView('goals');
+        renderGoalsList();
+      }
+    });
+
+    $('btn-add-goal').addEventListener('click', () => {
+      openGoalForm(null);
+    });
+
+    $('btn-goal-cancel').addEventListener('click', () => {
+      $('goal-form').classList.add('hidden');
+      $('btn-add-goal').classList.remove('hidden');
+      _editingGoalId = null;
+    });
+
+    $('btn-goal-save').addEventListener('click', () => {
+      const title    = $('goal-title-input').value.trim();
+      const deadline = $('goal-deadline-input').value;
+      const sessions = parseInt($('goal-sessions-input').value) || 0;
+
+      if (!title)    { _showShopToast('ENTER A TITLE'); return; }
+      if (!deadline) { _showShopToast('SET A DEADLINE'); return; }
+
+      if (_editingGoalId) {
+        const g = state.goals.find(g => g.id === _editingGoalId);
+        if (g) { g.title = title; g.deadline = deadline; g.sessionsTarget = sessions; }
+      } else {
+        if (!state.goals) state.goals = [];
+        state.goals.push({
+          id: Storage.uuid(),
+          pillarId: _activePillarId,
+          title,
+          deadline,
+          sessionsTarget: sessions,
+          createdAt: new Date().toISOString(),
+          status: 'active'
+        });
+      }
+
+      saveState();
+      Sound.click();
+      $('goal-form').classList.add('hidden');
+      $('btn-add-goal').classList.remove('hidden');
+      _editingGoalId = null;
+      renderGoalsList();
+    });
+
     $('btn-settings-back').addEventListener('click', () => {
       showView('dashboard');
       renderDashboard();

@@ -3783,3 +3783,637 @@ html, body {
   background: var(--accent-glow);
 }
 
+
+/* ══════════════════════════════════════════════════════
+   PLAN MODE — GOALS
+══════════════════════════════════════════════════════ */
+
+.plan-goals-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-back-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.plan-back-btn:hover { color: var(--text-primary); }
+
+.plan-goals-pillar-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+}
+
+/* Pillar chevron */
+.pillar-chevron {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-dim);
+  transition: transform 0.15s ease, color 0.15s ease;
+  pointer-events: none;
+}
+
+.plan-pillar-item:hover .pillar-chevron {
+  transform: translateX(3px);
+  color: var(--accent);
+}
+
+.plan-pillar-item { cursor: pointer; }
+
+/* Goal cards */
+.plan-goals-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.plan-goal-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pillar-color, var(--accent));
+  border-radius: var(--radius-md);
+  padding: 14px 14px 12px;
+  transition: border-color 0.15s ease;
+}
+
+.plan-goal-card:hover {
+  border-color: var(--border-light);
+  border-left-color: var(--pillar-color, var(--accent));
+}
+
+.plan-goal-card.is-overdue {
+  border-left-color: var(--red);
+  opacity: 0.85;
+}
+
+.plan-goal-card.is-completed {
+  opacity: 0.5;
+}
+
+.goal-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.goal-card-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  line-height: 1.3;
+  flex: 1;
+}
+
+.goal-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.goal-done-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--green);
+}
+
+.goal-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.goal-overdue   { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--red); }
+.goal-due-today { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--yellow); }
+.goal-urgent    { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--yellow); }
+.goal-weeks     { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-dim); }
+
+.goal-sessions-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* Goal progress bar */
+.goal-progress-bar {
+  height: 3px;
+  background: var(--bg-4);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* Goal form */
+.goal-form {
+  margin: 0 16px 16px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goal-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.date-input {
+  color-scheme: dark;
+}
+
+.form-label-optional {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: none;
+}
+
+.plan-empty-state {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  line-height: 1.8;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   PLAN MODE — SPRINTS
+══════════════════════════════════════════════════════ */
+
+.sprint-card {
+  margin: 0 16px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pillar-color, var(--accent));
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.active-sprint {
+  border-color: var(--border-light);
+  border-left-color: var(--pillar-color, var(--accent));
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.past-sprint {
+  opacity: 0.55;
+}
+
+.sprint-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sprint-week-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+
+.sprint-status-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.sprint-status-badge.active {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+}
+
+.sprint-status-badge.done {
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.sprint-focus {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.sprint-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sprint-target {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.sprint-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.sprint-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sprint-actions .btn-ghost,
+.sprint-actions .btn-primary {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+/* Sprint empty state */
+.sprint-empty {
+  margin: 0 16px;
+  padding: 32px 20px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.sprint-empty-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.sprint-empty .btn-primary {
+  letter-spacing: 3px;
+  font-size: 12px;
+}
+
+/* Sprint form */
+.sprint-form {
+  margin: 0 16px 16px;
+}
+
+.sprint-form-inner {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sprint-form-week {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+.sprint-textarea {
+  resize: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Sprint button on goal card */
+.sprint-btn {
+  color: var(--accent) !important;
+  border-color: var(--accent-dim) !important;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   SECTION 4 — GOAL SELECTOR + SPRINT INDICATOR
+══════════════════════════════════════════════════════ */
+
+/* Goal selector on intention screen */
+.intention-goal-row {
+  padding: 0 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intention-goal-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.goal-selector-none {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--bg-3);
+}
+
+.goal-selector-none.selected {
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+.goal-selector-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--pillar-color, var(--text-secondary));
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--pillar-color, var(--border)) 40%, transparent);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: color-mix(in srgb, var(--pillar-color, var(--bg-3)) 10%, var(--bg-3));
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-selector-chip.selected {
+  background: color-mix(in srgb, var(--pillar-color, var(--accent)) 20%, var(--bg-3));
+  border-color: var(--pillar-color, var(--accent));
+}
+
+.goal-selector-empty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Sprint indicator on dashboard */
+.sprint-indicator {
+  margin: 0 16px 4px;
+  padding: 10px 14px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sprint-indicator-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.sprint-indicator-text {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sprint-indicator-progress {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   PLAN MODE — TAB BAR + WAR ROOM
+══════════════════════════════════════════════════════ */
+
+.plan-tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-top: 10px;
+}
+
+.plan-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.plan-tab.active {
+  background: var(--bg-5, var(--bg-4));
+  color: var(--text-primary);
+}
+
+.plan-tab:hover:not(.active) {
+  color: var(--text-secondary);
+}
+
+/* War room pillar blocks */
+.wr-pillar-block {
+  margin: 0 16px 14px;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--pillar-color, var(--accent));
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wr-pillar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.wr-pillar-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.wr-pillar-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.wr-pillar-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+/* War room goal rows */
+.wr-goals-list {
+  background: var(--bg-1, var(--bg));
+}
+
+.wr-goal-row {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.wr-goal-row:last-child { border-bottom: none; }
+.wr-goal-row:hover { background: var(--bg-2); }
+.wr-goal-row.is-overdue { opacity: 0.8; }
+
+.wr-goal-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wr-goal-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  line-height: 1.3;
+}
+
+.wr-goal-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wr-sprint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.wr-sprint-focus {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wr-sprint-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.wr-sprint-count.target-hit {
+  color: var(--green);
+}
+
+.wr-no-sprint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+
+.wr-sprint-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.wr-sprint-link:hover { text-decoration: underline; }
+
+.wr-no-goals {
+  padding: 16px 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+/* War room warroom view padding */
+#plan-view-warroom {
+  padding-top: 4px;
+  padding-bottom: 16px;
+}
+

@@ -42,7 +42,13 @@ const Storage = (() => {
       { id: 'academics', name: 'ACADEMICS', color: '#4caf7d', icon: '📚' },
       { id: 'gamedev',   name: 'GAMEDEV',   color: '#7b9de8', icon: '🎮' },
       { id: 'other',     name: 'OTHER',     color: '#888880', icon: '◎'  }
-    ]
+    ],
+    goals: [],
+    // goal shape: { id, pillarId, title, deadline, sessionsTarget, createdAt, status }
+    // status: 'active' | 'completed' | 'archived'
+    sprints: []
+    // sprint shape: { id, goalId, weekNumber, focus, sessionsTarget, status, createdAt, completedAt }
+    // status: 'active' | 'completed'
   });
 
   // ── LOAD ──
