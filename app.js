@@ -951,6 +951,69 @@
     $('plan-tab-warroom').classList.toggle('active', view === 'warroom');
   }
 
+  function renderPillarList() {
+    const list    = $('plan-pillars-list');
+    const pillars = state.pillars || [];
+
+    if (!pillars.length) {
+      list.innerHTML = `<div class="plan-empty-state">No pillars yet.<br/>Add one below.</div>`;
+      return;
+    }
+
+    list.innerHTML = pillars.map((p, i) => {
+      const goalCount = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active').length;
+      const taskCount = (state.tasks || []).filter(t => t.tag === p.id && !t.completed).length;
+      return `
+        <div class="plan-pillar-item" style="--pillar-color:${p.color}" data-pillar-id="${p.id}">
+          <div class="plan-pillar-icon">${p.icon}</div>
+          <div class="plan-pillar-info">
+            <div class="plan-pillar-name">${p.name}</div>
+            <div class="plan-pillar-meta">${goalCount} goal${goalCount !== 1 ? 's' : ''} · ${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="plan-pillar-actions">
+            <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
+            <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
+            <span class="pillar-chevron">→</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Tap pillar to open goals
+    list.querySelectorAll('.plan-pillar-item').forEach(item => {
+      item.addEventListener('click', e => {
+        if (e.target.closest('.pillar-action-btn')) return;
+        Sound.click();
+        openPillarGoals(item.dataset.pillarId);
+      });
+    });
+
+    // Edit pillar buttons
+    list.querySelectorAll('.edit-pillar').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        renderPillarForm(parseInt(btn.dataset.idx));
+        $('pillar-form').classList.remove('hidden');
+        $('btn-add-pillar').classList.add('hidden');
+      });
+    });
+
+    // Delete pillar buttons
+    list.querySelectorAll('.delete-pillar').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx);
+        const pillar = state.pillars[idx];
+        forgeConfirm(`Delete "${pillar.name}"? Tasks will move to OTHER.`, () => {
+          state.tasks.forEach(t => { if (t.tag === pillar.id) t.tag = 'other'; });
+          state.pillars.splice(idx, 1);
+          saveState();
+          renderPillarList();
+          renderPillarChips();
+        });
+      });
+    });
+  }
+
   function openPillarGoals(pillarId) {
     _activePillarId = pillarId;
     const pillar = getPillarById(pillarId);
