@@ -64,7 +64,9 @@
   // ── Called by Firebase when auth state is known ──
   async function onAuthStateChanged(user) {
     if (!user) {
+      // No session — show sign in screen
       showView('onboarding');
+      showAuthLoading(false); // make sure button is visible
       return;
     }
 
@@ -117,10 +119,10 @@
     if (!loading || !btn) return;
     if (show) {
       loading.classList.remove('hidden');
-      btn.classList.add('hidden');
+      btn.style.display = 'none';
     } else {
       loading.classList.add('hidden');
-      btn.classList.remove('hidden');
+      btn.style.display = '';
       btn.disabled = false;
     }
   }
