@@ -76,9 +76,8 @@
       // Returning user — load their cloud data
       const base = Storage.defaultState();
       state = Storage.deepMerge(base, result.state);
-      // checkDayReset runs HERE — after cloud state is loaded.
-      // Running it before this point means Firestore overwrites
-      // the reset and today's counter never actually clears.
+      // Clean up legacy sprints data (removed in v11)
+      if (state.sprints) delete state.sprints;
       checkDayReset();
     } else {
       // First time signing in — set name from Google profile
@@ -89,14 +88,14 @@
         state.user.rank = XP.getRank(1);
       }
       checkDayReset();
-      await saveState();
     }
 
     Sound.setEnabled(state.settings.soundEnabled !== false);
     // Migrate old hardcoded tags → pillar ids
     const TAG_MIGRATE = { finals: 'academics', game: 'gamedev', urgent: 'academics' };
     state.tasks.forEach(t => { if (TAG_MIGRATE[t.tag]) t.tag = TAG_MIGRATE[t.tag]; });
-    saveState();
+    // Single save after all init mutations — awaited to prevent race conditions
+    await saveState();
     applyTheme(state.user.activeTheme || 'forge');
     showAuthLoading(false);
 
@@ -135,17 +134,9 @@
     const today = Storage.todayStr();
 
     // ── ONE-TIME MIGRATION ──
-    // Old code used toISOString() (UTC) to save lastActiveDate.
-    // New code uses local date. For Nepal (UTC+5:45) these can differ —
-    // the saved date may be one day behind the real local date.
-    // If lastActiveDate equals yesterday-in-UTC (i.e. today in local),
-    // we correct it forward so the streak comparison works properly.
-    // This block only fires once — after correction the dates will match.
     const streak = state.user.streak;
     if (streak.lastActiveDate) {
       const utcToday = new Date().toISOString().split('T')[0];
-      // If saved date matches UTC today but local today is different,
-      // the date was saved under old UTC logic — correct it to local.
       if (streak.lastActiveDate === utcToday && utcToday !== today) {
         state.user.streak.lastActiveDate = today;
       }
@@ -153,7 +144,9 @@
 
     if (state.today.date !== today) {
       state.today = { date: today, sessionsCompleted: 0 };
-      saveState();
+      // Don't save here — caller handles saving after all init is done
+      // This prevents a race condition where checkDayReset's save
+      // fires concurrently with the main onAuthStateChanged saveState
     }
   }
 
@@ -205,29 +198,6 @@
       chip.classList.remove('frozen');
     } else {
       chip.classList.remove('at-risk', 'frozen');
-    }
-
-    // Active goal indicator — show most urgent active goal
-    const indicator = $('sprint-indicator');
-    if (indicator) {
-      const activeGoals = (state.goals || []).filter(g => g.status === 'active');
-      if (activeGoals.length) {
-        // Pick the one with nearest deadline
-        const sorted = activeGoals.slice().sort((a,b) => {
-          if (!a.deadline) return 1;
-          if (!b.deadline) return -1;
-          return new Date(a.deadline) - new Date(b.deadline);
-        });
-        const g = sorted[0];
-        const goalTasks = (state.tasks || []).filter(t => t.goalId === g.id);
-        const done  = goalTasks.filter(t => t.completed).length;
-        const total = goalTasks.length;
-        $('sprint-indicator-text').textContent = g.title.length > 45 ? g.title.substring(0,45)+'…' : g.title;
-        $('sprint-indicator-progress').textContent = total ? `${done}/${total} tasks` : 'No tasks yet';
-        indicator.classList.remove('hidden');
-      } else {
-        indicator.classList.add('hidden');
-      }
     }
 
     // Coins
@@ -337,6 +307,7 @@
   }
 
   function renderTaskList() {
+    // completed tasks go to bottom
     const list = $('task-list');
     const tasks = state.tasks;
 
@@ -582,7 +553,9 @@
     const { updatedUser, levelsGained, newLevel, rankChanged, newRank } = XP.applyXP(state.user, xpResult.total);
 
     // Update streak
-    const newStreak = XP.updateStreak(updatedUser.streak, Storage.todayStr());
+    const prevFreezes = updatedUser.streak.freezesAvailable || 0;
+    const newStreak   = XP.updateStreak(updatedUser.streak, Storage.todayStr());
+    const freezeAwarded = (newStreak.freezesAvailable > prevFreezes);
     updatedUser.streak = newStreak;
     updatedUser.totalSessions += 1;
 
@@ -612,13 +585,13 @@
     saveState();
 
     // Show reward screen
-    showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak);
+    showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded);
   }
 
   // ══════════════════════════════════════════
   // REWARD SCREEN
   // ══════════════════════════════════════════
-  function showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak) {
+  function showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded) {
     $('reward-xp').textContent         = xpResult.total;
     $('reward-streak').textContent     = newStreak.current;
     $('reward-total').textContent      = state.user.totalSessions;
@@ -659,18 +632,29 @@
       rankEl.classList.add('hidden');
     }
 
+    // Freeze awarded
+    const freezeEl = $('reward-freeze-award');
+    if (freezeEl) {
+      if (freezeAwarded) {
+        freezeEl.classList.remove('hidden');
+      } else {
+        freezeEl.classList.add('hidden');
+      }
+    }
+
     showView('reward');
 
     // Play sounds after view transition
     setTimeout(() => {
       if (levelsGained > 0) {
         Sound.levelUp();
+      } else if (freezeAwarded) {
+        Sound.levelUp(); // reuse level-up sound for freeze award
       } else if (xpResult.bonusTriggered) {
         Sound.focusBonus();
       } else {
         Sound.sessionComplete();
       }
-      // XP blip slightly after
       setTimeout(() => Sound.xpGain(), 300);
     }, 150);
   }
@@ -942,13 +926,10 @@
   }
 
   function showPlanView(view) {
-    ['pillars','goals','weeks','warroom'].forEach(v => {
+    ['pillars','goals','weeks'].forEach(v => {
       const el = $(`plan-view-${v}`);
       if (el) el.classList.toggle('hidden', v !== view);
     });
-    const onPillarsTab = ['pillars','goals','weeks'].includes(view);
-    $('plan-tab-pillars').classList.toggle('active', onPillarsTab);
-    $('plan-tab-warroom').classList.toggle('active', view === 'warroom');
   }
 
   function renderPillarList() {
@@ -963,27 +944,68 @@
     list.innerHTML = pillars.map((p, i) => {
       const goalCount = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active').length;
       const taskCount = (state.tasks || []).filter(t => t.tag === p.id && !t.completed).length;
+      // Inline goal progress for this pillar
+      const activeGoals = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active');
+      const goalsHTML = activeGoals.map(g => {
+        const gTasks = (state.tasks || []).filter(t => t.goalId === g.id);
+        const gDone  = gTasks.filter(t => t.completed).length;
+        const gTotal = gTasks.length;
+        const pct    = gTotal > 0 ? Math.min(100, Math.round(gDone/gTotal*100)) : 0;
+        const daysLeft = _daysUntil(g.deadline);
+        let deadlineStr = '';
+        if (g.deadline) {
+          if (daysLeft < 0)       deadlineStr = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
+          else if (daysLeft <= 7) deadlineStr = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
+          else                    deadlineStr = `<span class="goal-weeks">${_weeksUntil(g.deadline)}w LEFT</span>`;
+        }
+        return `<div class="pillar-goal-row" data-goal-id="${g.id}" data-pillar-id="${p.id}">
+          <div class="pillar-goal-top">
+            <span class="pillar-goal-name">${escHtml(g.title)}</span>
+            <div class="pillar-goal-right">
+              ${deadlineStr}
+              <span class="goal-sessions-count">${gDone}/${gTotal}</span>
+            </div>
+          </div>
+          ${gTotal > 0 ? `<div class="goal-progress-bar" style="margin-top:4px">
+            <div class="goal-progress-fill" style="width:${pct}%;background:${p.color}"></div>
+          </div>` : ''}
+        </div>`;
+      }).join('');
+
       return `
         <div class="plan-pillar-item" style="--pillar-color:${p.color}" data-pillar-id="${p.id}">
-          <div class="plan-pillar-icon">${p.icon}</div>
-          <div class="plan-pillar-info">
-            <div class="plan-pillar-name">${p.name}</div>
-            <div class="plan-pillar-meta">${goalCount} goal${goalCount !== 1 ? 's' : ''} · ${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
+          <div class="plan-pillar-header-row">
+            <div class="plan-pillar-icon">${p.icon}</div>
+            <div class="plan-pillar-info">
+              <div class="plan-pillar-name">${p.name}</div>
+              <div class="plan-pillar-meta">${goalCount} goal${goalCount !== 1 ? 's' : ''} · ${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="plan-pillar-actions">
+              <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
+              <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
+              <span class="pillar-chevron">→</span>
+            </div>
           </div>
-          <div class="plan-pillar-actions">
-            <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
-            <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
-            <span class="pillar-chevron">→</span>
-          </div>
+          ${goalsHTML ? `<div class="pillar-goals-preview">${goalsHTML}</div>` : ''}
         </div>`;
     }).join('');
 
     // Tap pillar to open goals
     list.querySelectorAll('.plan-pillar-item').forEach(item => {
       item.addEventListener('click', e => {
-        if (e.target.closest('.pillar-action-btn')) return;
+        if (e.target.closest('.pillar-action-btn') || e.target.closest('.pillar-goal-row')) return;
         Sound.click();
         openPillarGoals(item.dataset.pillarId);
+      });
+    });
+
+    // Tap inline goal row → open that goal's weeks directly
+    list.querySelectorAll('.pillar-goal-row').forEach(row => {
+      row.addEventListener('click', e => {
+        e.stopPropagation();
+        Sound.click();
+        _activePillarId = row.dataset.pillarId;
+        openGoalWeeks(row.dataset.goalId);
       });
     });
 
@@ -1169,9 +1191,18 @@
         <div class="week-column ${isMobile ? '' : 'desktop-drop-zone'}" data-week-id="${week.id}"
              id="week-col-${week.id}">
           <div class="week-col-header" style="--pillar-color:${pillar.color}">
-            <span class="week-col-label">${escHtml(week.label)}</span>
-            <span class="week-col-count">${wDone}/${weekTasks.length}</span>
-            <button class="week-delete-btn" data-week-id="${week.id}">✕</button>
+            <div class="week-col-header-top">
+              <span class="week-col-label">${escHtml(week.label)}</span>
+              <div class="week-col-header-actions">
+                <button class="week-edit-btn" data-week-id="${week.id}">EDIT</button>
+                <button class="week-delete-btn" data-week-id="${week.id}">✕</button>
+              </div>
+            </div>
+            ${week.fromDate || week.toDate ? `
+            <div class="week-col-dates">
+              ${week.fromDate ? _formatShortDate(week.fromDate) : '?'} → ${week.toDate ? _formatShortDate(week.toDate) : '?'}
+            </div>` : ''}
+            <span class="week-col-count">${wDone}/${weekTasks.length} tasks</span>
           </div>
           <div class="week-tasks-list" id="week-tasks-${week.id}">
             ${renderWeekTasks(weekTasks, week.id, pillar, isMobile)}
@@ -1207,6 +1238,8 @@
   }
 
   function renderWeekTasks(tasks, weekId, pillar, isMobile) {
+    // Sort: incomplete first, completed last
+    tasks = [...tasks].sort((a,b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
     if (!tasks.length) return `<div class="week-empty">No tasks</div>`;
     return tasks.map(task => `
       <div class="week-task-item ${task.completed ? 'is-done' : ''}"
@@ -1228,13 +1261,15 @@
   function _bindWeeksEvents(isMobile, pillar) {
     const goal = state.goals.find(g => g.id === _activeGoalId);
 
-    // Add week button
-    $('btn-add-week').addEventListener('click', () => {
-      const weeks = (state.weeks || []).filter(w => w.goalId === _activeGoalId);
-      const num   = weeks.length + 1;
-      if (!state.weeks) state.weeks = [];
-      state.weeks.push({ id: Storage.uuid(), goalId: _activeGoalId, number: num, label: `WEEK ${num}` });
-      saveState(); renderWeeksView();
+    // Add week button — opens form
+    $('btn-add-week').addEventListener('click', () => openWeekForm(null));
+
+    // Edit week buttons
+    document.querySelectorAll('.week-edit-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        openWeekForm(btn.dataset.weekId);
+      });
     });
 
     // Delete week buttons
@@ -1339,6 +1374,60 @@
     }
   }
 
+  function _formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+  }
+
+  let _editingWeekId = null;
+
+  function openWeekForm(weekId) {
+    _editingWeekId = weekId;
+    const week = weekId ? (state.weeks || []).find(w => w.id === weekId) : null;
+    $('week-name-input').value  = week ? week.label : '';
+    $('week-from-input').value  = week ? (week.fromDate || '') : '';
+    $('week-to-input').value    = week ? (week.toDate   || '') : '';
+    $('week-form').classList.remove('hidden');
+    $('btn-add-week').classList.add('hidden');
+    $('week-name-input').focus();
+  }
+
+  function closeWeekForm() {
+    $('week-form').classList.add('hidden');
+    $('btn-add-week').classList.remove('hidden');
+    _editingWeekId = null;
+  }
+
+  function saveWeekForm() {
+    const label    = $('week-name-input').value.trim().toUpperCase();
+    const fromDate = $('week-from-input').value;
+    const toDate   = $('week-to-input').value;
+
+    if (!label) { _showShopToast('ENTER A NAME'); return; }
+
+    if (_editingWeekId) {
+      const w = state.weeks.find(w => w.id === _editingWeekId);
+      if (w) { w.label = label; w.fromDate = fromDate; w.toDate = toDate; }
+    } else {
+      if (!state.weeks) state.weeks = [];
+      const existing = state.weeks.filter(w => w.goalId === _activeGoalId);
+      state.weeks.push({
+        id:       Storage.uuid(),
+        goalId:   _activeGoalId,
+        number:   existing.length + 1,
+        label,
+        fromDate,
+        toDate
+      });
+    }
+
+    saveState();
+    Sound.click();
+    closeWeekForm();
+    renderWeeksView();
+  }
+
   function _addPlanTask(weekId) {
     const input = weekId === 'unassigned'
       ? document.querySelector('.week-task-input[data-week-id="unassigned"]')
@@ -1398,87 +1487,6 @@
   function closeMoveSheet() {
     $('move-task-modal').classList.add('hidden');
     _goalBeingMoved = null;
-  }
-
-  // ── WAR ROOM ──
-  function renderWarRoom() {
-    const container = $('warroom-content');
-    const pillars   = state.pillars || [];
-    const goals     = state.goals   || [];
-    const tasks     = state.tasks   || [];
-    const weeks     = state.weeks   || [];
-
-    if (!pillars.length) {
-      container.innerHTML = `<div class="plan-empty-state">No pillars yet.</div>`;
-      return;
-    }
-
-    container.innerHTML = pillars.map(pillar => {
-      const pillarGoals = goals.filter(g => g.pillarId === pillar.id && g.status === 'active');
-      const goalsHTML = pillarGoals.length ? pillarGoals.map(goal => {
-        const daysLeft  = _daysUntil(goal.deadline);
-        const isOverdue = daysLeft < 0;
-        const goalTasks = tasks.filter(t => t.goalId === goal.id);
-        const done      = goalTasks.filter(t => t.completed).length;
-        const total     = goalTasks.length;
-        const progress  = total > 0 ? Math.min(100, Math.round(done/total*100)) : null;
-        const goalWeeks = weeks.filter(w => w.goalId === goal.id).sort((a,b) => a.number - b.number);
-
-        let deadlineLabel = '';
-        if (goal.deadline) {
-          if (isOverdue)          deadlineLabel = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
-          else if (daysLeft <= 7) deadlineLabel = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
-          else                    deadlineLabel = `<span class="goal-weeks">${_weeksUntil(goal.deadline)}w LEFT</span>`;
-        }
-
-        // Week breakdown
-        const weeksHTML = goalWeeks.map(w => {
-          const wTasks = goalTasks.filter(t => t.weekId === w.id);
-          const wDone  = wTasks.filter(t => t.completed).length;
-          return `<div class="wr-week-row">
-            <span class="wr-week-label">${w.label}</span>
-            <span class="wr-week-count ${wDone === wTasks.length && wTasks.length > 0 ? 'target-hit' : ''}">${wDone}/${wTasks.length}</span>
-          </div>`;
-        }).join('');
-
-        return `
-          <div class="wr-goal-row ${isOverdue ? 'is-overdue' : ''}" data-goal-id="${goal.id}"
-               style="--pillar-color:${pillar.color}">
-            <div class="wr-goal-top">
-              <span class="wr-goal-title">${escHtml(goal.title)}</span>
-              <div class="wr-goal-meta">
-                ${deadlineLabel}
-                ${total > 0 ? `<span class="goal-sessions-count">◎ ${done}/${total}</span>` : ''}
-              </div>
-            </div>
-            ${progress !== null ? `
-            <div class="goal-progress-bar" style="margin-bottom:6px">
-              <div class="goal-progress-fill" style="width:${progress}%;background:${pillar.color}"></div>
-            </div>` : ''}
-            ${weeksHTML}
-          </div>`;
-      }).join('') : `<div class="wr-no-goals">No active goals</div>`;
-
-      return `
-        <div class="wr-pillar-block" style="--pillar-color:${pillar.color}">
-          <div class="wr-pillar-header">
-            <span class="wr-pillar-icon">${pillar.icon}</span>
-            <span class="wr-pillar-name">${pillar.name}</span>
-            <span class="wr-pillar-count">${pillarGoals.length} goal${pillarGoals.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div class="wr-goals-list">${goalsHTML}</div>
-        </div>`;
-    }).join('');
-
-    // Tap goal row → open weeks view
-    container.querySelectorAll('.wr-goal-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const goal = goals.find(g => g.id === row.dataset.goalId);
-        if (!goal) return;
-        _activePillarId = goal.pillarId;
-        openGoalWeeks(goal.id);
-      });
-    });
   }
 
   let _editingPillarIdx = null;
@@ -2351,19 +2359,6 @@
     });
 
     // ── SETTINGS ──
-    // ── PLAN TABS ──
-    $('plan-tab-pillars').addEventListener('click', () => {
-      Sound.click();
-      showPlanView('pillars');
-      renderPillarList();
-    });
-
-    $('plan-tab-warroom').addEventListener('click', () => {
-      Sound.click();
-      renderWarRoom();
-      showPlanView('warroom');
-    });
-
     // ── PLAN BACK BUTTONS ──
     $('btn-goals-back').addEventListener('click', () => {
       Sound.click();
@@ -2415,10 +2410,10 @@
           createdAt: new Date().toISOString(),
           status:    'active'
         });
-        // Auto-generate weeks
+        // Auto-generate weeks (no dates — user fills them in)
         if (!state.weeks) state.weeks = [];
         for (let i = 1; i <= _editingGoalWeekCount; i++) {
-          state.weeks.push({ id: Storage.uuid(), goalId: newGoalId, number: i, label: `WEEK ${i}` });
+          state.weeks.push({ id: Storage.uuid(), goalId: newGoalId, number: i, label: `WEEK ${i}`, fromDate: '', toDate: '' });
         }
       }
 
@@ -2429,6 +2424,11 @@
       _editingGoalId = null;
       renderGoalsList();
     });
+
+    // ── WEEK FORM ──
+    $('btn-week-cancel').addEventListener('click', closeWeekForm);
+    $('btn-week-save').addEventListener('click', saveWeekForm);
+    $('week-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveWeekForm(); });
 
     // ── MOVE TASK MODAL (mobile) ──
     $('move-task-backdrop').addEventListener('click', closeMoveSheet);

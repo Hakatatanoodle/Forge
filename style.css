@@ -4756,3 +4756,127 @@ html, body {
 
 .wr-week-count.target-hit { color: var(--green); }
 
+
+/* ══════════════════════════════════════════════════════
+   WEEK FORM
+══════════════════════════════════════════════════════ */
+
+.week-form {
+  margin: 0 16px 4px;
+}
+
+.week-form-inner {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.week-col-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.week-col-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.week-edit-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 5px;
+  transition: color 0.15s ease;
+}
+.week-edit-btn:hover { color: var(--accent); }
+
+.week-col-dates {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   PILLAR INLINE GOAL PREVIEW
+══════════════════════════════════════════════════════ */
+
+.plan-pillar-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pillar-goals-preview {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pillar-goal-row {
+  padding: 8px 10px;
+  background: var(--bg-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border-left: 2px solid var(--pillar-color, var(--accent));
+}
+
+.pillar-goal-row:hover {
+  background: var(--bg-4);
+}
+
+.pillar-goal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pillar-goal-name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pillar-goal-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+
+/* Freeze award notification on reward screen */
+.freeze-award {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #7dd3fc;
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  text-align: center;
+  margin-top: 4px;
+}

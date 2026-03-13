@@ -28,7 +28,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v11.0</span>
+          <span class="logo-version">v11.4</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -123,7 +123,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v11.0</span>
+          <span id="drawer-version" class="drawer-version">FORGE v11.4</span>
         </div>
       </div>
 
@@ -163,13 +163,6 @@
           <span class="stat-val" id="stat-streak-longest">0</span>
           <span class="stat-lbl">BEST STREAK</span>
         </div>
-      </div>
-
-      <!-- Active Sprint Indicator -->
-      <div id="sprint-indicator" class="sprint-indicator hidden">
-        <span class="sprint-indicator-label">⚡ ACTIVE SPRINT</span>
-        <span id="sprint-indicator-text" class="sprint-indicator-text"></span>
-        <span id="sprint-indicator-progress" class="sprint-indicator-progress"></span>
       </div>
 
       <!-- Quick Add Task -->
@@ -328,6 +321,7 @@
           <span id="levelup-new-level" class="levelup-num">2</span>
         </div>
         <div id="reward-rank-change" class="rank-change hidden"></div>
+        <div id="reward-freeze-award" class="freeze-award hidden">🧊 STREAK FREEZE EARNED — 7 DAY STREAK!</div>
         <div class="reward-stats">
           <div class="reward-stat">
             <span class="reward-stat-val" id="reward-streak">0</span>
@@ -704,10 +698,8 @@
             </div>
           </div>
           <span class="plan-title">PLAN MODE</span>
-          <div class="plan-tab-bar">
-            <button class="plan-tab active" id="plan-tab-pillars">PILLARS</button>
-            <button class="plan-tab" id="plan-tab-warroom">WAR ROOM</button>
-          </div>
+          <span class="plan-subtitle">PILLARS · GOALS · WEEKS</span>
+
         </div>
 
         <!-- ── PILLARS VIEW (default) ── -->
@@ -779,9 +771,25 @@
           </div>
         </div>
 
-        <!-- ── WAR ROOM VIEW ── -->
-        <div id="plan-view-warroom" class="hidden">
-          <div id="warroom-content"></div>
+
+
+        <!-- Add/Edit Week form -->
+        <div id="week-form" class="week-form hidden">
+          <div class="week-form-inner">
+            <input type="text" id="week-name-input" class="text-input" placeholder="PERIOD NAME (e.g. C EXAM PREP)" maxlength="40" />
+            <div class="goal-form-row">
+              <span class="pillar-form-label">FROM</span>
+              <input type="date" id="week-from-input" class="text-input date-input" />
+            </div>
+            <div class="goal-form-row">
+              <span class="pillar-form-label">TO</span>
+              <input type="date" id="week-to-input" class="text-input date-input" />
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-week-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-week-save" class="btn-primary">SAVE</button>
+            </div>
+          </div>
         </div>
 
         <!-- Move task modal (mobile) -->
@@ -799,7 +807,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v11.0</div>
+  <div class="version-stamp">FORGE v11.4</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
