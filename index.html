@@ -42,6 +42,20 @@
             </svg>
             CONTINUE WITH GOOGLE
           </button>
+          <!-- Offline / Guest path — fixes unusable when Firebase offline -->
+          <div class="offline-block" id="offline-block" style="display:none">
+            <div class="offline-divider"><span>OR</span></div>
+            <div class="offline-input-row">
+              <input type="text" id="input-offline-name" class="text-input" placeholder="OPERATIVE NAME" maxlength="20" />
+              <button id="btn-offline-start" class="btn-secondary">▶ GO</button>
+            </div>
+            <button id="btn-offline-enter" class="btn-ghost btn-full offline-enter-btn">ENTER OFFLINE MODE</button>
+            <div style="text-align:center;margin-top:6px">
+              <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--text-dim)">LOCAL ONLY · NO CLOUD SYNC</span>
+            </div>
+          </div>
+          <!-- Quick skip for dev -->
+          <button id="btn-skip-auth" class="btn-ghost" style="display:none;margin-top:8px;font-size:10px;letter-spacing:2px">SKIP → ENTER OFFLINE</button>
           <div id="google-signin-error" class="auth-error hidden"></div>
           <div id="auth-loading" class="auth-loading">
             <span class="auth-loading-text">CONNECTING...</span>
@@ -123,7 +137,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v11.7</span>
+          <span id="drawer-version" class="drawer-version">FORGE v11.8</span>
         </div>
       </div>
 
@@ -807,7 +821,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v11.7</div>
+  <div class="version-stamp">FORGE v11.8</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>

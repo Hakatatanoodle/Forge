@@ -7,15 +7,16 @@ const XP = (() => {
 
   // ── RANK TABLE ──
   // Identity anchoring: what you're called matters.
+  // Canonical 8 ranks — must match THEME_RANKS keys in app.js (INITIATE, APPRENTICE, OPERATOR, SPECIALIST, VETERAN, ELITE, COMMANDER, LEGEND)
   const RANKS = [
     { minLevel: 1,  title: 'INITIATE'    },
     { minLevel: 3,  title: 'APPRENTICE'  },
-    { minLevel: 6,  title: 'BUILDER'     },
-    { minLevel: 10, title: 'CRAFTSMAN'   },
-    { minLevel: 15, title: 'SPECIALIST'  },
-    { minLevel: 20, title: 'OPERATOR'    },
-    { minLevel: 30, title: 'ARCHITECT'   },
-    { minLevel: 50, title: 'FORGE MASTER'},
+    { minLevel: 6,  title: 'OPERATOR'    },
+    { minLevel: 10, title: 'SPECIALIST'  },
+    { minLevel: 15, title: 'VETERAN'     },
+    { minLevel: 20, title: 'ELITE'       },
+    { minLevel: 30, title: 'COMMANDER'   },
+    { minLevel: 50, title: 'LEGEND'      },
   ];
 
   // ── BREAK TIPS ──

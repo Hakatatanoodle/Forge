@@ -54,11 +54,28 @@
   // ══════════════════════════════════════════
   function init() {
     bindEvents();
-    // NOTE: checkDayReset() is NOT called here — it runs inside
-    // onAuthStateChanged AFTER cloud state loads. Calling it here
-    // would reset today's counter against local state, which then
-    // gets overwritten by Firestore, throwing the reset away.
-    FB.init(onAuthStateChanged);
+    // Fallback offline timer — if Firebase doesn't respond in 3s, show login with offline option
+    const fbTimeout = setTimeout(() => {
+      if (!views.onboarding.classList.contains('active') || $('btn-google-signin').style.display !== 'none') return;
+      // Still in loading state, show buttons
+      showAuthLoading(false);
+    }, 3000);
+
+    // Wrap onAuthStateChanged to clear timeout
+    const origHandler = onAuthStateChanged;
+    window._clearFbTimeout = () => clearTimeout(fbTimeout);
+
+    FB.init((user) => {
+      clearTimeout(fbTimeout);
+      origHandler(user);
+    });
+
+    // Also render pillar chips for quick-add if state already available locally (offline first paint)
+    try {
+      if (state.pillars && state.pillars.length) {
+        setTimeout(() => { if (typeof renderPillarChips === 'function') renderPillarChips(); }, 100);
+      }
+    } catch(e) {}
   }
 
   // ── Called by Firebase when auth state is known ──
@@ -113,17 +130,56 @@
     }
   }
 
+  let _isOfflineMode = false;
   function showAuthLoading(show) {
     const loading = $('auth-loading');
     const btn     = $('btn-google-signin');
+    const offBtn  = $('btn-offline-enter');
+    const skipBtn = $('btn-skip-auth');
+    const offBlock = $('offline-block');
+    const nameRow = $('input-offline-name')?.parentElement?.parentElement || offBlock;
     if (!loading || !btn) return;
-    if (show) {
+    if (show && !_isOfflineMode) {
       loading.classList.remove('hidden');
       btn.style.display = 'none';
+      if (offBlock) offBlock.style.display = 'none';
+      if (offBtn) offBtn.style.display = 'none';
+      if (skipBtn) skipBtn.style.display = 'none';
     } else {
       loading.classList.add('hidden');
       btn.style.display = '';
       btn.disabled = false;
+      if (offBlock) offBlock.style.display = '';
+      if (offBtn) offBtn.style.display = '';
+      if (skipBtn) skipBtn.style.display = '';
+    }
+  }
+
+  function enterOfflineMode(nameOverride) {
+    _isOfflineMode = true;
+    const base = Storage.defaultState();
+    // load local state, ensure offline
+    state = Storage.load();
+    // if no name, allow override
+    if (nameOverride) state.user.name = nameOverride.toUpperCase();
+    if (!state.user.name) state.user.name = 'OPERATIVE';
+    if (!state.user.rank) state.user.rank = XP.getRank(state.user.level || 1);
+    checkDayReset();
+    // migration
+    const TAG_MIGRATE = { finals: 'academics', game: 'gamedev', urgent: 'academics' };
+    state.tasks.forEach(t => { if (TAG_MIGRATE[t.tag]) t.tag = TAG_MIGRATE[t.tag]; });
+    if (state.sprints) delete state.sprints;
+    Storage.save(state);
+    Sound.setEnabled(state.settings.soundEnabled !== false);
+    applyTheme(state.user.activeTheme || 'forge');
+    showAuthLoading(false);
+    if (_shouldShowSummary()) {
+      _markSummaryShown();
+      renderWeeklySummary();
+      showView('summary');
+    } else {
+      showView('dashboard');
+      renderDashboard();
     }
   }
 
@@ -215,8 +271,10 @@
     renderCurrentTask(nextTask);
   }
 
-  // ── Priority sort: urgent > finals > game > other ──
-  // Pillar priority — derived from state.pillars order
+  // ── Pillar picker state — moved up for outer renderPillarChips access ──
+  let _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
+
+  // ── Priority sort based on pillar order ──
   function getPillarPriority(pillarId) {
     const pillars = state.pillars || [];
     const idx = pillars.findIndex(p => p.id === pillarId);
@@ -258,7 +316,7 @@
   // TASK MANAGEMENT
   // ══════════════════════════════════════════
   let selectedDifficulty = 1.0;
-  let _selectedPillar = 'other'; // set properly after state loads
+  // _selectedPillar already declared above
 
   function addTask() {
     const input = $('input-task');
@@ -305,7 +363,31 @@
   }
 
   function getPillarById(id) {
-    return (state.pillars || []).find(p => p.id === id) || { name: id.toUpperCase(), color: '#888880', icon: '◎' };
+    return (state.pillars || []).find(p => p.id === id) || { name: (id||'OTHER').toUpperCase(), color: '#888880', icon: '◎' };
+  }
+
+  // Pillar chips — moved to outer scope so renderPillarList can call it (fixes unusable bug)
+  function renderPillarChips() {
+    const row = $('pillar-chips-row');
+    if (!row) return;
+    const pillars = state.pillars || [];
+    // Ensure selected pillar still exists
+    const exists = pillars.some(p => p.id === _selectedPillar);
+    if (!exists) _selectedPillar = (pillars[0] && pillars[0].id) || 'other';
+    const selected = _selectedPillar;
+    row.innerHTML = pillars.map(p => `
+      <div class="pillar-chip ${p.id === selected ? 'selected' : ''}"
+           data-pillar="${p.id}"
+           style="--pillar-color:${p.color}">
+        <span class="pillar-chip-dot"></span>
+        ${p.name}
+      </div>`).join('');
+    row.querySelectorAll('.pillar-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        _selectedPillar = chip.dataset.pillar;
+        renderPillarChips();
+      });
+    });
   }
 
   function renderTaskList() {
@@ -442,12 +524,15 @@
     } else {
       switcher.innerHTML = incompleteTasks
         .sort((a, b) => getPillarPriority(a.tag) - getPillarPriority(b.tag))
-        .map(t => `
+        .map(t => {
+          const pl = getPillarById(t.tag);
+          return `
           <div class="task-switcher-item ${t.id === sessionContext.taskId ? 'is-selected' : ''}"
                data-task-id="${t.id}">
-            <span class="task-tag-badge ${t.tag}">${t.tag.toUpperCase()}</span>
+            <span class="task-tag-badge" style="background:${pl.color}22;color:${pl.color};border:1px solid ${pl.color}44">${pl.icon} ${pl.name}</span>
             ${escHtml(t.text)}
-          </div>`)
+          </div>`;
+        })
         .join('');
 
       // Tap to select
@@ -594,6 +679,10 @@
   // REWARD SCREEN
   // ══════════════════════════════════════════
   function showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded) {
+    // Reset reward UI state — critical fix for reused view
+    $('task-bonus-display').classList.add('hidden');
+    $('task-decision').classList.remove('hidden');
+
     $('reward-xp').textContent         = xpResult.total;
     $('reward-streak').textContent     = newStreak.current;
     $('reward-total').textContent      = state.user.totalSessions;
@@ -1021,18 +1110,23 @@
       });
     });
 
-    // Delete pillar buttons
+    // Delete pillar buttons — fixed to also move goals
     list.querySelectorAll('.delete-pillar').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.idx);
         const pillar = state.pillars[idx];
-        forgeConfirm(`Delete "${pillar.name}"? Tasks will move to OTHER.`, () => {
+        if (!pillar) return;
+        forgeConfirm(`Delete "${pillar.name}"? Tasks & goals move to OTHER.`, () => {
           state.tasks.forEach(t => { if (t.tag === pillar.id) t.tag = 'other'; });
+          (state.goals||[]).forEach(g => { if (g.pillarId === pillar.id) g.pillarId = 'other'; });
           state.pillars.splice(idx, 1);
+          // reset selected if it was deleted
+          if (_selectedPillar === pillar.id) _selectedPillar = (state.pillars[0] && state.pillars[0].id) || 'other';
           saveState();
           renderPillarList();
           renderPillarChips();
+          renderDashboard();
         });
       });
     });
@@ -1116,9 +1210,14 @@
     list.querySelectorAll('.delete-goal').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        forgeConfirm('Delete this goal?', () => {
-          state.goals = state.goals.filter(g => g.id !== btn.dataset.id);
-          saveState(); renderGoalsList();
+        forgeConfirm('Delete this goal? Its weeks become unassigned.', () => {
+          const gid = btn.dataset.id;
+          // delete weeks belonging to this goal
+          state.weeks = (state.weeks || []).filter(w => w.goalId !== gid);
+          // unlink tasks from this goal/week
+          state.tasks.forEach(t => { if (t.goalId === gid) { t.goalId = null; t.weekId = null; } });
+          state.goals = state.goals.filter(g => g.id !== gid);
+          saveState(); renderGoalsList(); renderDashboard();
         });
       });
     });
@@ -2112,23 +2211,53 @@
   // ══════════════════════════════════════════
   function bindEvents() {
 
-    // ── ONBOARDING / AUTH — Google only ──
-    $('btn-google-signin').addEventListener('click', async () => {
-      $('btn-google-signin').disabled = true;
+    // ── ONBOARDING / AUTH ──
+    const gBtn = $('btn-google-signin');
+    if (gBtn) gBtn.addEventListener('click', async () => {
+      gBtn.disabled = true;
       $('auth-loading').classList.remove('hidden');
-      $('google-signin-error').classList.add('hidden');
+      const errEl = $('google-signin-error');
+      if (errEl) errEl.classList.add('hidden');
 
       const result = await FB.signInWithGoogle();
 
       if (!result.ok && !result.pending) {
         $('auth-loading').classList.add('hidden');
-        $('btn-google-signin').disabled = false;
-        const errEl = $('google-signin-error');
-        errEl.textContent = result.error || 'Sign-in failed.';
-        errEl.classList.remove('hidden');
+        gBtn.disabled = false;
+        showAuthLoading(false);
+        if (errEl) {
+          errEl.textContent = result.error || 'Sign-in failed.';
+          errEl.classList.remove('hidden');
+        }
       }
-      // If ok or pending (mobile redirect), onAuthStateChanged handles the rest
     });
+
+    // Offline mode buttons (new)
+    const offBtn = $('btn-offline-enter');
+    if (offBtn) offBtn.addEventListener('click', () => {
+      Sound.click();
+      enterOfflineMode();
+    });
+    const skipBtn = $('btn-skip-auth');
+    if (skipBtn) skipBtn.addEventListener('click', () => {
+      Sound.click();
+      enterOfflineMode();
+    });
+    const offlineNameInput = $('input-offline-name');
+    const offlineStartBtn = $('btn-offline-start');
+    if (offlineNameInput && offlineStartBtn) {
+      offlineStartBtn.addEventListener('click', () => {
+        const v = offlineNameInput.value.trim();
+        Sound.click();
+        enterOfflineMode(v || 'OPERATIVE');
+      });
+      offlineNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const v = offlineNameInput.value.trim();
+          enterOfflineMode(v || 'OPERATIVE');
+        }
+      });
+    }
 
     // ── DASHBOARD ──
     $('btn-start-session').addEventListener('click', openIntention);
@@ -2198,28 +2327,7 @@
       showView('tasks');
     });
 
-    // ── PILLAR CHIPS ──
-    function renderPillarChips() {
-      const row = $('pillar-chips-row');
-      if (!row) return;
-      const pillars = state.pillars || [];
-      const selected = _selectedPillar || (pillars[0] && pillars[0].id) || 'other';
-      row.innerHTML = pillars.map(p => `
-        <div class="pillar-chip ${p.id === selected ? 'selected' : ''}"
-             data-pillar="${p.id}"
-             style="--pillar-color:${p.color}">
-          <span class="pillar-chip-dot"></span>
-          ${p.name}
-        </div>`).join('');
-      row.querySelectorAll('.pillar-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-          _selectedPillar = chip.dataset.pillar;
-          renderPillarChips();
-        });
-      });
-    }
-
-    // Track selected pillar for task add
+    // Track selected pillar for task add (outer renderPillarChips now exists)
     _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
     renderPillarChips();
 

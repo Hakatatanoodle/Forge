@@ -4941,3 +4941,53 @@ html, body {
   0%, 100% { opacity: 0.2; transform: scale(0.8); }
   50%       { opacity: 1;   transform: scale(1.2); }
 }
+
+/* ══════════════════════════════════════════════════════
+   OFFLINE MODE BLOCK — fixes unusable when no Firebase
+══════════════════════════════════════════════════════ */
+.offline-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-md);
+}
+.offline-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+.offline-divider::before,
+.offline-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.offline-divider span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+.offline-input-row {
+  display: flex;
+  gap: 8px;
+}
+.offline-input-row .text-input { flex: 1; }
+.offline-enter-btn {
+  width: 100%;
+  border-style: dashed;
+  font-size: 11px;
+  letter-spacing: 3px;
+  padding: 12px;
+}
+.offline-enter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

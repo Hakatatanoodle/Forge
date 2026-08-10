@@ -1,29 +1,34 @@
 // ═══════════════════════════════════════════════════════
-// sw.js — Service Worker
-// Caches all app files on first load → works fully offline.
+// sw.js — Service Worker v11.7 (fixed)
+// Robust install, no external font fails, relative paths
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'forge-v7';
+const CACHE_NAME = 'forge-v11-7';
 
 const FILES_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/sound.js',
-  '/timer.js',
-  '/xp.js',
-  '/storage.js',
-  '/firebase.js',
-  '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&display=swap'
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './sound.js',
+  './timer.js',
+  './xp.js',
+  './storage.js',
+  './firebase.js',
+  './manifest.json'
 ];
 
-// Install: cache everything
+// Install: cache everything, but don't fail if one file fails
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(FILES_TO_CACHE);
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const file of FILES_TO_CACHE) {
+        try {
+          await cache.add(file);
+        } catch (e) {
+          console.warn('FORGE SW: failed to cache', file, e.message);
+        }
+      }
     })
   );
   self.skipWaiting();
@@ -41,31 +46,49 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network first, fall back to cache
-// This ensures updates always come through on fresh open
+// Fetch: HTML network-first, everything else cache-first with network fallback
 self.addEventListener('fetch', event => {
-  // For HTML files — always go network first so new deploys are picked up
-  if (event.request.headers.get('accept')?.includes('text/html')) {
+  const req = event.request;
+  // Skip Firebase / external APIs — never cache
+  if (req.url.includes('firestore.googleapis.com') ||
+      req.url.includes('firebase') ||
+      req.url.includes('googleapis') ||
+      req.url.includes('gstatic')) {
+    return; // let browser handle
+  }
+
+  // HTML — network first
+  if (req.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(req)
         .then(res => {
           const clone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
           return res;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(req))
     );
     return;
   }
 
-  // For everything else — cache first (fast), but update cache in background
+  // Others — cache first, then network
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const networkFetch = fetch(event.request).then(res => {
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, res.clone()));
+    caches.match(req).then(cached => {
+      if (cached) {
+        // update in background
+        fetch(req).then(res => {
+          if (res && res.status === 200) {
+            caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+          }
+        }).catch(()=>{});
+        return cached;
+      }
+      return fetch(req).then(res => {
+        if (res && res.status === 200) {
+          caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+        }
         return res;
-      });
-      return cached || networkFetch;
+      }).catch(() => cached);
     })
   );
 });
