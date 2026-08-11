@@ -10,6 +10,7 @@
   --bg-2:         #111111;
   --bg-3:         #1a1a1a;
   --bg-4:         #222222;
+  --bg-elev:      color-mix(in srgb, var(--bg) 86%, var(--border));
   --border:       #2a2a2a;
   --border-light: #333333;
 
@@ -25,6 +26,12 @@
   --green:        #4caf7d;
   --red:          #c0392b;
   --yellow:       #d4a017;
+
+  /* Theme roles — each world fills these (VISUAL_DESIGN.md) */
+  --xp-grad:      linear-gradient(90deg, var(--accent-dim), var(--accent));
+  --success:      #4caf7d;
+  --danger:       #c0392b;
+  --streak:       #e85d04;
 
   --font-display: 'Barlow Condensed', sans-serif;
   --font-mono:    'Share Tech Mono', monospace;
@@ -73,7 +80,83 @@ html, body {
   height: 100%;
   max-width: 480px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
+
+/* Main work area — contains all .view elements */
+#app-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── RAIL — persistent nav + user status ──
+   Mobile: top bar · Desktop (≥1024px): left sidebar */
+.rail {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+.rail-brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.rail-brand-text {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+
+.rail-brand-sub {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.rail-user {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-self: start;
+  overflow: hidden;
+}
+
+.rail-user .rank-label { font-size: 8px; letter-spacing: 2px; }
+.rail-user .user-name  { font-size: 14px; letter-spacing: 1px; }
+
+.rail-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* XP bar spans the full rail width on the second row (mobile top bar) */
+.rail .xp-section {
+  grid-column: 1 / -1;
+  padding: 6px 0 0;
+  border-bottom: none;
+}
+
+.rail-nav    { display: none; }
+.rail-footer { display: none; }
+.rail-burger { grid-column: 4; }
+
+/* Hide the rail entirely on chrome-free moments (set by app.js showView) */
+body.no-rail #rail { display: none !important; }
 
 /* ── VIEWS ── */
 .view {
@@ -402,7 +485,7 @@ html, body {
 
 .xp-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  background: var(--xp-grad, linear-gradient(90deg, var(--accent-dim), var(--accent)));
   width: 0%;
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 2px;
@@ -467,6 +550,173 @@ html, body {
   font-size: 18px;
   letter-spacing: 4px;
   padding: 18px;
+}
+
+/* Rank progress line — "⚡ X XP to NEXT RANK" */
+.rank-progress-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin: -6px 0 14px;
+}
+.rank-progress-line::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* Task display extras */
+.task-goal-crumb {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-top: 6px;
+}
+.diff-stars {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  vertical-align: middle;
+}
+
+/* Today's Quests */
+.quest-section {
+  padding: 16px 20px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.quest-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.quest-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+.quest-progress {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--success);
+}
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+.quest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  transition: border-color .15s, transform .1s;
+}
+.quest-item:hover { border-color: var(--accent-dim); }
+.quest-item:active { transform: scale(.98); }
+.quest-item.selected {
+  border-color: var(--accent);
+  background: linear-gradient(90deg, var(--accent-glow), transparent);
+}
+.quest-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.quest-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quest-goal {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.quest-stars {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+/* Quest empty states */
+.quest-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+}
+.quest-empty-text {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+}
+.quest-empty-sub {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.btn-empty-cta {
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: 3px;
+  padding: 12px 18px;
+  animation: pulse-cta 2s ease-in-out infinite;
+}
+@keyframes pulse-cta {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50%      { box-shadow: 0 0 0 12px transparent; }
+}
+
+/* Quick-add collapse */
+.quick-add-toggle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+.quick-add-form {
+  margin-top: 14px;
 }
 
 /* Stats Row */
@@ -650,6 +900,92 @@ html, body {
   font-style: italic;
   margin-top: 8px;
   line-height: 1.5;
+}
+
+/* The declaration ritual — "I WILL" locked, one big sentence */
+.intention-declare {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  transition: var(--transition);
+}
+.intention-declare:focus-within {
+  border-bottom-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+.intention-prefix {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.intention-declare .intention-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  line-height: 1.3;
+  caret-color: var(--accent);
+}
+.intention-declare .intention-input:focus {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.intention-declare .intention-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+/* Goal breadcrumb on the mission line — context, not a selector */
+.intention-goal-crumb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-left: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* LOCK IN → the commitment stamp */
+.btn-lock-in {
+  flex: 1;
+  font-size: 16px;
+  letter-spacing: 3px;
+  padding: 16px;
+  box-shadow: 0 0 22px var(--accent-glow);
+}
+.intention-locked-stamp {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 4px;
+  color: var(--success);
+  text-align: center;
+  padding: 10px 0;
+  text-shadow: 0 0 12px var(--success);
+  animation: stamp-in 0.25s ease-out;
+}
+@keyframes stamp-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 /* ── TASK SELECTOR on intention screen ── */
@@ -1086,21 +1422,32 @@ html, body {
   100% { transform: scale(1); opacity: 1; }
 }
 
-.levelup-text {
+.levelup-head {
   font-family: var(--font-display);
   font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 6px;
+  font-size: 14px;
+  letter-spacing: 5px;
   color: var(--accent);
   display: block;
 }
 
 .levelup-num {
-  font-family: var(--font-mono);
-  font-size: 48px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 42px;
+  letter-spacing: 2px;
   color: var(--text-primary);
   display: block;
-  line-height: 1.1;
+  line-height: 1.2;
+}
+
+.levelup-rankline {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  display: block;
+  margin-top: 2px;
 }
 
 .rank-change {
@@ -1112,6 +1459,43 @@ html, body {
   border: 1px solid var(--accent-dim);
   border-radius: var(--radius);
   background: var(--accent-glow);
+}
+
+/* Beat 0 — the task I did */
+.reward-task-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 320px;
+  text-align: center;
+}
+.reward-task-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+/* Beat reveals — coins, stats, decision slide/fade in */
+.reward-stats:not(.hidden) {
+  animation: reward-slide 0.4s ease;
+}
+.coins-earned:not(.hidden) {
+  animation: reward-slide 0.4s ease;
+}
+@keyframes reward-slide {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.task-decision:not(.hidden) {
+  animation: decision-fade 0.5s ease;
+}
+@keyframes decision-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .reward-stats {
@@ -2641,6 +3025,9 @@ html, body {
   --accent-dim:   #003b00;
   --accent-glow:  rgba(0, 255, 65, 0.1);
   --accent-bright:#39ff5a;
+  --xp-grad:      linear-gradient(90deg, #007a1f, #00ff41);
+  --font-display: 'Share Tech Mono', monospace;
+  --font-body:    'Share Tech Mono', monospace;
 }
 
 /* Hacker: heavy scanlines */
@@ -2666,7 +3053,6 @@ html, body {
 }
 
 [data-theme="hacker"] .user-name         { font-family: var(--font-mono); letter-spacing: 4px; }
-[data-theme="hacker"] .xp-bar-fill       { background: linear-gradient(90deg, #007a1f, #00ff41); }
 [data-theme="hacker"] .btn-primary       { background: #003b00; border: 1px solid #00ff41; color: #00ff41; }
 [data-theme="hacker"] .btn-primary:hover { background: #005500; }
 [data-theme="hacker"] .rank-label        { color: #00ff41; letter-spacing: 4px; }
@@ -2989,6 +3375,37 @@ html, body {
 }
 
 
+/* ── General toast (Minecraft-advancement style) ── */
+.toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  background: var(--bg-3);
+  border: 1px solid var(--accent);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 12px 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  z-index: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  max-width: calc(100vw - 40px);
+  text-align: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+.toast.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.toast.success { border-color: var(--success); border-left-color: var(--success); color: var(--success); }
+.toast.error   { border-color: var(--danger); border-left-color: var(--danger); color: var(--danger); }
+
+
 /* ── Custom Confirm Modal ── */
 .forge-confirm-backdrop {
   position: fixed;
@@ -3182,6 +3599,8 @@ html, body {
   --hm-3: #780010;
   --hm-4: #b01020;
   --hm-glow: rgba(176,16,32,0.6);
+  --xp-grad:      linear-gradient(90deg, #4a0810, #b01020);
+  --font-body:    'Cormorant Garamond', serif;
 }
 
 [data-theme="void"] .user-name {
@@ -3194,10 +3613,6 @@ html, body {
 [data-theme="void"] .rank-label {
   color: var(--accent);
   letter-spacing: 5px;
-}
-
-[data-theme="void"] .xp-bar-fill {
-  background: linear-gradient(90deg, #4a0810, #b01020);
 }
 
 [data-theme="void"] .btn-primary {
@@ -3263,6 +3678,8 @@ html, body {
   --hm-3: #428500;
   --hm-4: #5aaf2f;
   --hm-glow: rgba(90,175,47,0.6);
+  --xp-grad:      #5aaf2f;
+  --font-display: 'Press Start 2P', monospace;
 }
 
 [data-theme="minecraft"] .user-name {
@@ -3357,93 +3774,94 @@ html, body {
    THEME: ANIME
    Deep navy. Neon pink. Purple glow. Rank = shinobi titles.
 ══════════════════════════════════════════════════════ */
+/* ANIME — ONE PIECE: the Grand Line. Ocean navy, sun gold, parchment sails. */
 [data-theme="anime"] {
-  --bg:           #080812;
-  --bg-2:         #0d0d1e;
-  --bg-3:         #12122a;
-  --bg-4:         #181835;
-  --border:       #1e1e3a;
-  --border-light: #28285a;
-  --text-primary:   #e8e0f8;
-  --text-secondary: #7870a8;
-  --text-dim:       #3c3870;
-  --accent:       #e040fb;
-  --accent-dim:   #6a1080;
-  --accent-glow:  rgba(224,64,251,0.12);
-  --accent-bright:#f060ff;
-  --hm-1: #1a0028;
-  --hm-2: #3d0060;
-  --hm-3: #8000b0;
-  --hm-4: #e040fb;
-  --hm-glow: rgba(224,64,251,0.6);
+  --bg:           #0a1128;
+  --bg-2:         #101a36;
+  --bg-3:         #152140;
+  --bg-4:         #1b2a4e;
+  --border:       #24345c;
+  --border-light: #2f4371;
+  --text-primary:   #f2e8d0;   /* parchment / old sail */
+  --text-secondary: #9fb0c8;   /* sea fog */
+  --text-dim:       #5a6b8c;   /* underwater depth */
+  --accent:       #f2b632;     /* sun gold — straw hat, treasure */
+  --accent-dim:   #8a5a00;     /* deep amber */
+  --accent-glow:  rgba(242, 182, 50, 0.14);
+  --accent-bright:#ffd75e;     /* treasure flash */
+  --success:      #e05548;     /* coral red — Luffy's vest */
+  --danger:       #b0302a;
+  --streak:       #ffd75e;
+  --xp-grad:      linear-gradient(90deg, #8a5a00, #f2b632, #ffd75e);
+  --font-display: 'Barlow Condensed', sans-serif;
+  --hm-1: #12223f;
+  --hm-2: #1d3a66;
+  --hm-3: #d9a125;
+  --hm-4: #ffd75e;
+  --hm-glow: rgba(255,215,94,0.6);
 }
 
 [data-theme="anime"] .user-name {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
   letter-spacing: 3px;
-  color: #f060ff;
+  color: var(--accent-bright);
 }
 
 [data-theme="anime"] .rank-label {
-  color: #e040fb;
+  color: var(--accent);
   letter-spacing: 5px;
-  text-shadow: 0 0 8px rgba(224,64,251,0.5);
-}
-
-[data-theme="anime"] .xp-bar-fill {
-  background: linear-gradient(90deg, #6a1080, #e040fb, #f060ff);
-  box-shadow: 0 0 8px rgba(224,64,251,0.4);
+  text-shadow: 0 0 8px rgba(242,182,50,0.5);
 }
 
 [data-theme="anime"] .btn-primary {
-  background: linear-gradient(135deg, #6a1080, #e040fb);
+  background: linear-gradient(135deg, #8a5a00, #f2b632);
   border: none;
   letter-spacing: 3px;
-  box-shadow: 0 0 20px rgba(224,64,251,0.3);
-  font-family: 'Rajdhani', sans-serif;
+  box-shadow: 0 0 20px rgba(242,182,50,0.3);
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 700;
 }
 
 [data-theme="anime"] .btn-primary:hover {
-  background: linear-gradient(135deg, #8000b0, #f060ff);
-  box-shadow: 0 0 30px rgba(224,64,251,0.5);
+  background: linear-gradient(135deg, #a96e00, #ffd75e);
+  box-shadow: 0 0 30px rgba(242,182,50,0.5);
 }
 
 [data-theme="anime"] .coins-chip,
 [data-theme="anime"] .streak-chip {
-  border-color: #1e1e3a;
-  color: #e040fb;
+  border-color: #24345c;
+  color: var(--accent);
 }
 
 [data-theme="anime"] .streak-icon {
-  color: #e040fb;
-  text-shadow: 0 0 6px rgba(224,64,251,0.6);
+  color: var(--streak);
+  text-shadow: 0 0 6px rgba(255,215,94,0.6);
 }
 
 [data-theme="anime"] .drawer-title {
-  font-family: 'Rajdhani', sans-serif;
-  color: #e040fb;
+  font-family: var(--font-display);
+  color: var(--accent);
   font-size: 24px;
   font-weight: 700;
-  text-shadow: 0 0 10px rgba(224,64,251,0.4);
+  text-shadow: 0 0 10px rgba(242,182,50,0.4);
 }
 
 [data-theme="anime"] .summary-hero-xp {
-  color: #e040fb;
-  text-shadow: 0 0 20px rgba(224,64,251,0.8), 0 0 60px rgba(224,64,251,0.3);
+  color: var(--accent-bright);
+  text-shadow: 0 0 20px rgba(242,182,50,0.8), 0 0 60px rgba(242,182,50,0.3);
 }
 
-/* Ambient glow effect */
+/* Ambient glow — Grand Line haze */
 [data-theme="anime"] #app::after {
   content: '';
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at 10% 20%, rgba(224,64,251,0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 80%, rgba(96,0,200,0.08) 0%, transparent 50%);
+    radial-gradient(ellipse at 10% 20%, rgba(242,182,50,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(27,58,110,0.12) 0%, transparent 50%);
   pointer-events: none;
   z-index: 9998;
   max-width: 480px;
@@ -3456,22 +3874,22 @@ html, body {
 .theme-preview.preview-heisenberg { background: #0d0f14; }
 .theme-preview.preview-void       { background: #000000; }
 .theme-preview.preview-minecraft  { background: #1a1a1a; }
-.theme-preview.preview-anime      { background: #080812; }
+.theme-preview.preview-anime      { background: #0a1128; }
 
 .preview-bar.heisenberg-bar { background: linear-gradient(90deg, #5a4a1a, #c8a84b); }
 .preview-bar.void-bar       { background: linear-gradient(90deg, #4a0810, #b01020); }
 .preview-bar.minecraft-bar  { background: #5aaf2f; height: 8px; border: 1px solid #444; }
-.preview-bar.anime-bar      { background: linear-gradient(90deg, #6a1080, #e040fb, #f060ff); box-shadow: 0 0 6px rgba(224,64,251,0.4); }
+.preview-bar.anime-bar      { background: linear-gradient(90deg, #8a5a00, #f2b632, #ffd75e); box-shadow: 0 0 6px rgba(242,182,50,0.4); }
 
 .preview-accent-heisenberg { background: #c8a84b; }
 .preview-accent-void       { background: #b01020; }
 .preview-accent-minecraft  { background: #5aaf2f; border-radius: 0; }
-.preview-accent-anime      { background: #e040fb; box-shadow: 0 0 4px rgba(224,64,251,0.6); }
+.preview-accent-anime      { background: #f2b632; box-shadow: 0 0 4px rgba(242,182,50,0.6); }
 
 .preview-line.void-line        { background: #1a1a1a; }
 .preview-line.heisenberg-line  { background: #1e2330; }
 .preview-line.minecraft-line   { background: #333; border: 1px solid #444; }
-.preview-line.anime-line       { background: #1e1e3a; }
+.preview-line.anime-line       { background: #24345c; }
 
 
 /* ══════════════════════════════════════════════════════
@@ -4990,4 +5408,224 @@ html, body {
 .offline-enter-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* ══════════════════════════════════════════════════════
+   DESKTOP / LAPTOP — "Operator Console" (≥1024px)
+   Rail becomes a persistent left sidebar; views fill the rest.
+══════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+
+  /* ── Shell ── */
+  #app {
+    max-width: none;
+    width: 100%;
+    flex-direction: row;
+    border-left: none;
+    border-right: none;
+  }
+
+  #app-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ── Rail: persistent sidebar ── */
+  .rail {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 20px 16px;
+    overflow-y: auto;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+
+  .rail-brand { margin-right: 0; }
+  .rail-brand-text { font-size: 34px; letter-spacing: 4px; }
+  .rail-brand-sub  { font-size: 9px; letter-spacing: 3px; }
+
+  .rail-user {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rail-user .rank-label { font-size: 10px; letter-spacing: 3px; }
+  .rail-user .user-name  { font-size: 18px; letter-spacing: 2px; }
+
+  .rail .xp-section { width: 100%; padding-top: 0; }
+
+  .rail-status { justify-content: space-between; }
+
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 6px;
+  }
+
+  .rail-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .rail-nav-item:hover {
+    color: var(--text-primary);
+    background: var(--bg-3);
+  }
+  .rail-nav-item.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: linear-gradient(90deg, var(--accent-glow), transparent);
+    text-shadow: 0 0 14px var(--accent-glow);
+  }
+
+  /* mode-btn is a pill toggle — neutralize it for the sidebar nav */
+  .rail .mode-btn {
+    border-radius: 0;
+    padding: 10px 12px;
+    background: none;
+    font-size: 11px;
+  }
+  .rail .mode-btn.active {
+    background: none;
+    color: var(--accent);
+    border-left: 2px solid var(--accent);
+    text-shadow: 0 0 14px var(--accent-glow);
+  }
+
+  .rail-footer {
+    display: flex;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .rail-version {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+
+  .rail-burger { display: none; }
+
+  /* Mobile drawer is replaced by the rail on desktop */
+  #btn-open-drawer, #nav-drawer, #drawer-backdrop { display: none !important; }
+
+  /* ── Dashboard: 2-column mission console ── */
+  #view-dashboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  #view-dashboard .focus-block {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px 44px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+  #view-dashboard .quest-section { grid-column: 2; }
+  #view-dashboard .quick-add-section {
+    grid-column: 2;
+    padding: 24px 32px;
+  }
+
+  /* Signature: the lock-in console */
+  #view-dashboard .focus-label { font-size: 10px; letter-spacing: 4px; margin-bottom: 18px; }
+  #view-dashboard .task-display { min-height: 90px; align-items: center; }
+  #view-dashboard .task-display-content { font-size: 36px; line-height: 1.25; letter-spacing: 1px; }
+  #view-dashboard .task-empty-state { font-size: 16px; }
+  #view-dashboard .btn-start {
+    font-size: 20px;
+    letter-spacing: 5px;
+    padding: 22px;
+    margin-top: 8px;
+    box-shadow: 0 0 28px var(--accent-glow);
+  }
+
+  /* ── Plan mode: 3-column master-detail ── */
+  .plan-container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+    align-items: start;
+    padding-bottom: 24px;
+  }
+  .plan-header { grid-column: 1 / -1; }
+  .plan-header-top { display: none; }
+
+  #plan-view-pillars,
+  #plan-view-goals,
+  #plan-view-weeks {
+    display: block !important;
+    min-width: 0;
+    border-right: 1px solid var(--border);
+  }
+  #plan-view-pillars { grid-column: 1; }
+  #plan-view-goals   { grid-column: 2; }
+  #plan-view-weeks   { grid-column: 3; border-right: none; }
+
+  .plan-back-btn { display: none !important; }
+  .plan-goals-header { padding: 20px 16px 0; }
+  .plan-section-label { padding: 20px 16px 10px; }
+  .plan-hint { opacity: 0.6; font-style: italic; }
+
+  #week-form { grid-column: 1 / -1; }
+
+  /* Weeks columns fit & scroll inside col 3 */
+  .weeks-columns { padding: 12px 16px; }
+  .week-column { width: 220px; }
+
+  /* ── Focus views: centered, scaled up ── */
+  .timer-ring-container { width: 380px; height: 380px; }
+  .intention-container { max-width: 560px; }
+  .reward-container { max-width: 560px; }
+  .summary-container { max-width: 640px; }
+  #view-onboarding .onboard-container { max-width: 520px; }
+
+  /* ── Data views: room to breathe ── */
+  .shop-items-grid { grid-template-columns: repeat(3, 1fr); padding: 0 24px; }
+  .shop-container,
+  .history-container,
+  .tasks-container {
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .heatmap-section { padding: 20px 32px; }
+
+  .settings-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+    column-gap: 20px;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 24px 32px;
+  }
+  .settings-header,
+  #btn-settings-save { grid-column: 1 / -1; }
 }

@@ -3,7 +3,7 @@
 // Robust install, no external font fails, relative paths
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'forge-v11-7';
+const CACHE_NAME = 'forge-v11-8';
 
 const FILES_TO_CACHE = [
   './',

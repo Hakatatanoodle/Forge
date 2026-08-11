@@ -233,3 +233,6 @@ const XP = (() => {
   };
 
 })();
+
+// Expose for classic-script consumers (tests.js reads window.XP).
+if (typeof window !== 'undefined') window.XP = XP;

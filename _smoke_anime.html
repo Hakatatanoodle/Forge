@@ -872,9 +872,6 @@
   <!-- Shop toast -->
   <div id="shop-toast" class="shop-toast"></div>
 
-  <!-- General toast (Minecraft-advancement style) -->
-  <div id="toast" class="toast"></div>
-
   <!-- Scripts -->
   <!-- Firebase SDKs (compat version — no build tools needed) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -886,6 +883,56 @@
   <script src="timer.js"></script>
   <script src="sound.js"></script>
   <script src="firebase.js"></script>
+  <script>
+window.__smokeErrors = [];
+window.onerror = function(m,s,l,c){ window.__smokeErrors.push(m + ' @' + (l||'?') + ':' + (c||'?')); };
+window.addEventListener('unhandledrejection', function(e){ window.__smokeErrors.push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
+try { localStorage.setItem('forge_state', "{\"user\":{\"name\":\"TARA\",\"xp\":4593,\"level\":4,\"totalSessions\":12,\"rank\":\"APPRENTICE\",\"coins\":85,\"unlockedThemes\":[\"forge\",\"venom\",\"anime\"],\"activeTheme\":\"anime\",\"streak\":{\"current\":3,\"longest\":6,\"lastActiveDate\":\"2026-08-10\",\"freezesAvailable\":0}},\"tasks\":[{\"id\":\"t1\",\"text\":\"Revise chapter 5: Integration\",\"tag\":\"academics\",\"goalId\":\"g1\",\"weekId\":null,\"completed\":false,\"xpMultiplier\":2,\"createdAt\":\"2026-08-10T10:00:00Z\",\"completedAt\":null}],\"sessions\":[],\"today\":{\"date\":\"2026-08-11\",\"sessionsCompleted\":0},\"settings\":{\"workMinutes\":50,\"breakMinutes\":10,\"soundEnabled\":false,\"summaryDay\":0,\"lastSummaryWeek\":null},\"pillars\":[{\"id\":\"academics\",\"name\":\"ACADEMICS\",\"color\":\"#4caf7d\",\"icon\":\"📚\"},{\"id\":\"gamedev\",\"name\":\"GAMEDEV\",\"color\":\"#7b9de8\",\"icon\":\"🎮\"},{\"id\":\"other\",\"name\":\"OTHER\",\"color\":\"#888880\",\"icon\":\"◎\"}],\"goals\":[{\"id\":\"g1\",\"pillarId\":\"academics\",\"title\":\"Pass Calculus Finals\",\"deadline\":null,\"weekCount\":4,\"createdAt\":\"2026-07-01T00:00:00Z\",\"status\":\"active\"}],\"weeks\":[]}"); } catch(e){ window.__smokeErrors.push('seed: ' + e.message); }
+window.FB = window.FB || {};
+window.FB.init = function(cb){ setTimeout(function(){ cb(null); }, 50); };
+window.FB.loadState = function(){ return Promise.resolve({ ok:true, state:null }); };
+window.FB.saveState = function(){ return Promise.resolve({ ok:true }); };
+window.FB.saveSession = function(){ return Promise.resolve({ ok:true }); };
+window.FB.getCurrentUser = function(){ return null; };
+window.FB.isSignedIn = function(){ return false; };
+window.FB.signInWithGoogle = function(){ return Promise.resolve({ ok:false }); };
+window.FB.signOut = function(){ return Promise.resolve({ ok:true }); };
+window.FB.deleteUserData = function(){ return Promise.resolve({ ok:true }); };
+
+var R = [];
+var snap = function(label){ R.push(label + ' :: ' + [
+  'view=' + (document.querySelector('.view.active')||{}).id,
+  'task=' + ((document.getElementById('reward-task-name')||{}).textContent || '-'),
+  'xp=' + ((document.getElementById('reward-xp')||{}).textContent || '-'),
+  'bonus=' + ((document.getElementById('reward-bonus-label')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN'),
+  'coins=' + ((document.getElementById('reward-coins-earned')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN+' + (document.getElementById('reward-coins')||{}).textContent),
+  'stats=' + ((document.getElementById('reward-stats')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN'),
+  'lvlup=' + ((document.getElementById('levelup-banner')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN [' + (document.getElementById('levelup-head')||{}).textContent + ' ' + (document.getElementById('levelup-num')||{}).textContent + ' ' + (document.getElementById('levelup-rankline')||{}).textContent + ']'),
+  'decide=' + ((document.getElementById('task-decision')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN' + ((document.getElementById('btn-task-done')||{}).disabled ? '(disabled)' : '(enabled)'))
+].join('  ')); };
+
+// drive the session
+setTimeout(function(){ var b=document.getElementById('btn-offline-enter'); if(b)b.click(); else R.push('ERR offline btn'); }, 800);
+setTimeout(function(){ var b=document.getElementById('btn-start-session'); if(b)b.click(); else R.push('ERR start btn'); }, 1200);
+setTimeout(function(){ document.getElementById('btn-intention-confirm').click(); }, 1600); // LOCK IN
+setTimeout(function(){
+  // force the 15% focus bonus + complete the session
+  window.__oldRandom = Math.random;
+  Math.random = function(){ return 0.05; };
+  document.getElementById('btn-complete-session').click();
+  Math.random = window.__oldRandom;
+}, 2600);
+setTimeout(function(){ snap('T0'); }, 2850);   // just after reward shows (Beat 0)
+setTimeout(function(){ snap('T1'); }, 3400);   // count-up mid (Beat 1)
+setTimeout(function(){ snap('T2'); }, 4300);   // coins/stats (Beat 2)
+setTimeout(function(){ snap('T3'); }, 5000);   // level-up (Beat 3)
+setTimeout(function(){ snap('T4'); }, 7000);   // decision (Beat 4)
+setTimeout(function(){
+  var p = document.createElement('pre'); p.id = 'smoke-report';
+  p.textContent = R.join('\n') + '\nERRORS: ' + (window.__smokeErrors.length ? window.__smokeErrors.join(' || ') : 'NONE');
+  document.body.appendChild(p);
+}, 7100);
+</script>
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

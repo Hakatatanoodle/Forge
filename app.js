@@ -47,6 +47,8 @@
   function showView(name) {
     Object.values(views).forEach(v => v.classList.remove('active'));
     if (views[name]) views[name].classList.add('active');
+    // Hide the rail on chrome-free, focused moments
+    document.body.classList.toggle('no-rail', ['onboarding','session','break','reward','summary'].indexOf(name) !== -1);
   }
 
   // ══════════════════════════════════════════
@@ -261,14 +263,36 @@
     // Coins
     $('display-coins').textContent = user.coins || 0;
 
-    // Stats
-    $('stat-sessions').textContent       = user.totalSessions;
-    $('stat-today').textContent          = today.sessionsCompleted;
-    $('stat-streak-longest').textContent = user.streak.longest;
+    // Rank progress — "⚡ X XP to NEXT RANK"
+    const rankLine = $('rank-progress-line');
+    if (rankLine) {
+      const next = getNextRankInfo(user);
+      rankLine.textContent = next
+        ? `⚡ ${next.xpNeeded} XP to ${next.rankTitle}`
+        : '★ MAX RANK ACHIEVED ★';
+    }
 
     // Current task (first incomplete, prioritizing urgent > finals > game > other)
     const nextTask = getNextTask(tasks);
     renderCurrentTask(nextTask);
+
+    // Today's Quests
+    renderQuestList();
+  }
+
+  // ── Rank → next rank math (drives the hero "XP to next rank" line) ──
+  function getNextRankInfo(user) {
+    const ranks = XP.RANKS || [];
+    const next = ranks.find(r => r.minLevel > user.level);
+    if (!next) return null; // already max rank
+    let xpNeeded = 0;
+    let lvl = user.level;
+    while (lvl < next.minLevel) {
+      xpNeeded += XP.xpForLevel(lvl);
+      lvl++;
+    }
+    xpNeeded -= (user.xp || 0);
+    return { rankTitle: next.title, xpNeeded: Math.max(xpNeeded, 0) };
   }
 
   // ── Pillar picker state — moved up for outer renderPillarChips access ──
@@ -301,15 +325,100 @@
     }
 
     const pillar = getPillarById(task.tag);
+    const starCount = { 1: 1, 1.5: 2, 2: 3 }[task.xpMultiplier || 1] || 1;
+    const stars     = '<span class="diff-stars">' + '★'.repeat(starCount) + '</span>';
+    const goal      = task.goalId ? (getGoalById(task.goalId)?.title || '') : '';
     display.innerHTML = `
       <div class="task-display-content">
         <span class="task-tag-badge" style="background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44">${pillar.icon} ${pillar.name}</span>
         ${escHtml(task.text)}
+        ${goal ? `<span class="task-goal-crumb">▸ ${escHtml(goal)}</span>` : ''}
+        ${stars}
       </div>`;
 
     startBtn.disabled = false;
     sessionContext.taskId = task.id;
     sessionContext.difficultyMultiplier = task.xpMultiplier || 1.0;
+
+    // highlight the selected quest (if the list is rendered)
+    const questList = $('quest-list');
+    if (questList) {
+      questList.querySelectorAll('.quest-item').forEach(q => {
+        q.classList.toggle('selected', q.dataset.taskId === task.id);
+      });
+    }
+  }
+
+  // ── Today's Quests — pending task queue with tap-to-set-objective ──
+  function renderQuestList() {
+    const list = $('quest-list');
+    if (!list) return;
+    const tasks   = state.tasks || [];
+    const pending = tasks.filter(t => !t.completed);
+    const done    = tasks.length - pending.length;
+
+    // header progress "2/5 done"
+    const progress = $('quest-progress');
+    if (progress) progress.textContent = (done > 0) ? `${done}/${tasks.length} done` : '';
+
+    const currentId = sessionContext.taskId;
+
+    // ── Empty states ──
+    if (!tasks.length) {
+      const hasGoals = (state.goals || []).length > 0;
+      if (hasGoals) {
+        list.innerHTML = `
+          <div class="quest-empty">
+            <span class="quest-empty-text">NO QUESTS YET</span>
+            <span class="quest-empty-sub">Tap + ADD QUEST to forge one.</span>
+          </div>`;
+      } else {
+        // first-run funnel → PLAN mode
+        list.innerHTML = `
+          <div class="quest-empty">
+            <span class="quest-empty-text">FORGE YOUR FIRST GOAL</span>
+            <span class="quest-empty-sub">Pillars → Goals → Tasks</span>
+            <button id="btn-empty-to-plan" class="btn-primary btn-empty-cta">OPEN PLAN MODE ▶</button>
+          </div>`;
+        const cta = $('btn-empty-to-plan');
+        if (cta) cta.addEventListener('click', () => showView('plan'));
+      }
+      return;
+    }
+
+    if (!pending.length) {
+      list.innerHTML = `
+        <div class="quest-empty">
+          <span class="quest-empty-text">QUESTS CLEARED ✓</span>
+          <span class="quest-empty-sub">The day is done. Come back tomorrow.</span>
+        </div>`;
+      return;
+    }
+
+    // ── Quest rows ──
+    list.innerHTML = pending.map(t => {
+      const pillar    = getPillarById(t.tag);
+      const starCount = { 1: 1, 1.5: 2, 2: 3 }[t.xpMultiplier || 1] || 1;
+      const stars     = '★'.repeat(starCount);
+      const goal      = t.goalId ? (getGoalById(t.goalId)?.title || '') : '';
+      return `
+        <button class="quest-item ${t.id === currentId ? 'selected' : ''}" data-task-id="${t.id}">
+          <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
+          <span class="quest-text">${escHtml(t.text)}</span>
+          ${goal ? `<span class="quest-goal">▸ ${escHtml(goal)}</span>` : ''}
+          <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+        </button>`;
+    }).join('');
+
+    list.querySelectorAll('.quest-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const t = state.tasks.find(x => x.id === item.dataset.taskId);
+        if (!t) return;
+        renderCurrentTask(t); // also re-highlights + sets sessionContext
+        Sound.click();
+        flashElement(item, 'Objective set');
+      });
+    });
   }
 
   // ══════════════════════════════════════════
@@ -321,7 +430,11 @@
   function addTask() {
     const input = $('input-task');
     const text  = input.value.trim();
-    if (!text) return;
+    if (!text) {
+      showToast('TYPE A QUEST FIRST', 'error');
+      input.focus();
+      return;
+    }
 
     const tag = _selectedPillar || 'other';
 
@@ -343,7 +456,7 @@
     input.value = '';
     renderDashboard();
     Sound.taskAdded();
-    flashElement($('btn-add-task'), 'Task added!');
+    showToast('QUEST ADDED ✓', 'success');
   }
 
   function deleteTask(id) {
@@ -364,6 +477,10 @@
 
   function getPillarById(id) {
     return (state.pillars || []).find(p => p.id === id) || { name: (id||'OTHER').toUpperCase(), color: '#888880', icon: '◎' };
+  }
+
+  function getGoalById(id) {
+    return (state.goals || []).find(g => g.id === id) || null;
   }
 
   // Pillar chips — moved to outer scope so renderPillarList can call it (fixes unusable bug)
@@ -471,7 +588,8 @@
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
     if (!task) return;
 
-    $('input-intention').value = '';
+    // Pre-fill the declaration with the task — sharpen it, don't retype it
+    $('input-intention').value = task.text;
 
     // Always reset sessionMinutes so previous session's pick doesn't bleed in
     const currentMins = state.settings.workMinutes;
@@ -493,9 +611,8 @@
     renderIntentionTask();
     closeSwitcher();
 
-    // Reset and render goal selector
-    sessionContext.goalId = null;
-    _renderGoalSelector(task ? task.tag : null);
+    // The goal comes from the task — never re-picked on this screen
+    sessionContext.goalId = task.goalId || null;
 
     showView('intention');
     setTimeout(() => $('input-intention').focus(), 300);
@@ -512,6 +629,14 @@
     badge.className   = 'task-tag-badge';
     badge.style.cssText = `background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44`;
     $('intention-task-name').textContent = task.text;
+
+    // Goal breadcrumb — context, not a selector
+    const crumb = $('intention-goal-crumb');
+    if (crumb) {
+      const goal = task.goalId ? getGoalById(task.goalId) : null;
+      crumb.textContent   = goal ? `▸ ${goal.title}` : '';
+      crumb.style.display = goal ? '' : 'none';
+    }
   }
 
   // ── Open/close the task switcher dropdown ──
@@ -558,19 +683,43 @@
     $('btn-switch-task').classList.remove('open');
   }
 
-  // Step 2: Lock in intention → start session
+  // Step 2: Lock in intention → "✓ INTENTION LOCKED" stamp → session
   function startSession() {
-    const intention = $('input-intention').value.trim();
-    if (!intention) {
+    const raw = $('input-intention').value.trim();
+    if (!raw) {
       $('input-intention').focus();
-      $('input-intention').placeholder = 'This is required. Be specific.';
+      $('input-intention').placeholder = 'required — be specific';
       return;
     }
 
-    sessionContext.intention  = intention;
+    // Store the full declaration — "I will" is locked, so echo it
+    const cleaned = raw.replace(/^i\s+will\s*/i, '');
+    sessionContext.intention  = 'I will ' + cleaned;
     sessionContext.startTime  = new Date().toISOString();
-    // goalId already set by _renderGoalSelector selection
+    // goalId set in openIntention (from the task)
 
+    // The commitment stamp — one beat, then straight into the session
+    const confirm = $('btn-intention-confirm');
+    const cancel  = $('btn-intention-cancel');
+    const stamp   = $('intention-locked-stamp');
+    stamp.classList.remove('hidden');
+    confirm.disabled = true;
+    cancel.disabled  = true;
+    Sound.sessionStart();
+
+    setTimeout(() => {
+      stamp.classList.add('hidden');
+      confirm.disabled = false;
+      cancel.disabled  = false;
+      // Guard: if the user hit back during the stamp, don't launch
+      if (document.querySelector('.view.active') !== $('view-intention')) return;
+      launchSession();
+    }, 500);
+  }
+
+  // Step 2b: flip to the focus screen and start the wall-clock timer
+  function launchSession() {
+    const intention = sessionContext.intention;
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
 
     $('session-task-label').textContent        = task ? task.text : '—';
@@ -582,7 +731,6 @@
     $('session-controls').classList.remove('hidden');
 
     showView('session');
-    Sound.sessionStart();
 
     // Use the session-level minutes (set by picker, not global settings)
     Timer.startFocus(
@@ -679,75 +827,160 @@
   // REWARD SCREEN
   // ══════════════════════════════════════════
   function showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded) {
-    // Reset reward UI state — critical fix for reused view
+    // ── Reset reward UI state — critical fix for reused view ──
     $('task-bonus-display').classList.add('hidden');
-    $('task-decision').classList.remove('hidden');
+    $('task-decision').classList.add('hidden');
+    $('levelup-banner').classList.add('hidden');
+    $('reward-bonus-label').classList.add('hidden');
+    $('reward-coins-earned').classList.add('hidden');
+    $('reward-freeze-award').classList.add('hidden');
+    $('reward-stats').classList.add('hidden');
+    const decisionBtns = document.querySelectorAll('#task-decision button');
+    decisionBtns.forEach(b => b.disabled = true);
 
-    $('reward-xp').textContent         = xpResult.total;
-    $('reward-streak').textContent     = newStreak.current;
-    $('reward-total').textContent      = state.user.totalSessions;
+    // Beat 0 — the task I did (data was already written in completeSession)
+    renderRewardTask(state.tasks.find(t => t.id === sessionContext.taskId));
+
+    // Stage the numbers (hidden until their beat)
+    $('reward-xp').textContent          = '0';
+    $('reward-streak').textContent      = newStreak.current;
+    $('reward-total').textContent       = state.user.totalSessions;
     $('reward-coins-total').textContent = state.user.coins || 0;
+    if (xpResult.coinsEarned > 0) $('reward-coins').textContent = xpResult.coinsEarned;
+    if (xpResult.bonusTriggered) $('reward-bonus-label').textContent = `⚡ FOCUS BONUS +${xpResult.bonus} XP`;
 
-    // Coins earned
-    if (xpResult.coinsEarned > 0) {
-      $('reward-coins').textContent = xpResult.coinsEarned;
-      $('reward-coins-earned').classList.remove('hidden');
-    } else {
-      $('reward-coins-earned').classList.add('hidden');
-    }
-
-    // Bonus label
-    const bonusEl = $('reward-bonus-label');
-    if (xpResult.bonusTriggered) {
-      bonusEl.textContent = `⚡ FOCUS BONUS +${xpResult.bonus} XP`;
-      bonusEl.classList.remove('hidden');
-    } else {
-      bonusEl.classList.add('hidden');
-    }
-
-    // Level up
-    const levelupEl = $('levelup-banner');
-    if (levelsGained > 0) {
-      $('levelup-new-level').textContent = newLevel;
-      levelupEl.classList.remove('hidden');
-    } else {
-      levelupEl.classList.add('hidden');
-    }
-
-    // Rank change
-    const rankEl = $('reward-rank-change');
-    if (rankChanged) {
-      rankEl.textContent = `▲ RANK UP → ${newRank}`;
-      rankEl.classList.remove('hidden');
-    } else {
-      rankEl.classList.add('hidden');
-    }
-
-    // Freeze awarded
-    const freezeEl = $('reward-freeze-award');
-    if (freezeEl) {
-      if (freezeAwarded) {
-        freezeEl.classList.remove('hidden');
-      } else {
-        freezeEl.classList.add('hidden');
-      }
+    // Stage the level-up ceremony
+    const hadLevelUp = (levelsGained > 0 || rankChanged);
+    if (hadLevelUp) {
+      const oldRank = XP.getRank(Math.max(1, newLevel - levelsGained));
+      const lu = _themeLevelUpText(newLevel, oldRank, newRank, rankChanged);
+      $('levelup-head').textContent    = lu.head;
+      $('levelup-num').textContent     = lu.num;
+      $('levelup-rankline').textContent = lu.sub;
     }
 
     showView('reward');
+    Sound.sessionComplete(); // Beat 0 — "I did THIS"
 
-    // Play sounds after view transition
+    // ── The beats ──
+    // Beat 1 (0.45s): XP counts up + chime
     setTimeout(() => {
-      if (levelsGained > 0) {
-        Sound.levelUp();
-      } else if (freezeAwarded) {
-        Sound.levelUp(); // reuse level-up sound for freeze award
-      } else if (xpResult.bonusTriggered) {
+      countUp($('reward-xp'), xpResult.total, 900);
+      Sound.xpGain();
+    }, 450);
+
+    // Beat 1b (0.95s): FOCUS BONUS chip — the surprise
+    if (xpResult.bonusTriggered) {
+      setTimeout(() => {
+        $('reward-bonus-label').classList.remove('hidden');
         Sound.focusBonus();
-      } else {
-        Sound.sessionComplete();
-      }
-      setTimeout(() => Sound.xpGain(), 300);
-    }, 150);
+      }, 950);
+    }
+
+    // Beat 2 (1.45s): coins + streak slide in — the proof
+    setTimeout(() => {
+      if (xpResult.coinsEarned > 0) $('reward-coins-earned').classList.remove('hidden');
+      $('reward-stats').classList.remove('hidden');
+      Sound.click();
+    }, 1450);
+
+    // Beat 3 (~2.15s): LEVEL UP ceremony — fanfare + particles + identity
+    if (hadLevelUp || freezeAwarded) {
+      setTimeout(() => {
+        if (freezeAwarded && !hadLevelUp) {
+          $('reward-freeze-award').classList.remove('hidden');
+          Sound.levelUp();
+        }
+        if (hadLevelUp) {
+          $('levelup-banner').classList.remove('hidden');
+          burstParticles(14, $('levelup-banner'));
+          Sound.levelUp();
+        }
+      }, 2150);
+    }
+
+    // Beat 4 (after ceremony): the decision fades in
+    const decisionAt = (hadLevelUp || freezeAwarded) ? 3700 : 2600;
+    setTimeout(() => {
+      $('task-decision').classList.remove('hidden');
+      decisionBtns.forEach(b => b.disabled = false);
+    }, decisionAt);
+  }
+
+  // ── Beat 0 helper — "I did THIS" ──
+  function renderRewardTask(task) {
+    const display = $('reward-task-display');
+    if (!display) return;
+    if (!task) { display.style.display = 'none'; return; }
+    display.style.display = '';
+    const pillar = getPillarById(task.tag);
+    const badge = $('reward-task-badge');
+    badge.textContent = `${pillar.icon} ${pillar.name}`;
+    badge.className   = 'task-tag-badge';
+    badge.style.cssText = `background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44`;
+    $('reward-task-name').textContent = task.text;
+  }
+
+  // ── Beat 1 helper — XP count-up (requestAnimationFrame) ──
+  function countUp(el, target, duration) {
+    if (!el) return;
+    const start = performance.now();
+    const from  = 0;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      el.textContent = Math.round(from + (target - from) * eased);
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  // ── Beat 3 helper — particle burst (reuses the xp-particle motif) ──
+  function burstParticles(count, origin) {
+    const rect = origin ? origin.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('span');
+      p.className = 'xp-particle';
+      p.textContent = Math.random() > 0.5 ? '★' : '⚡';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 90;
+      p.style.left = (cx + Math.cos(ang) * dist) + 'px';
+      p.style.top  = (cy + Math.sin(ang) * dist) + 'px';
+      p.style.fontSize = (14 + Math.random() * 16) + 'px';
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1600);
+    }
+  }
+
+  // ── Beat 3 helper — theme-flavored level-up line ──
+  function _themeLevelUpText(newLevel, oldRank, newRank, rankChanged) {
+    const theme = state.user.activeTheme || 'forge';
+    const tr = THEME_RANKS[theme] || {};
+    const oldRN = rankChanged && oldRank ? (tr[oldRank] || oldRank) : '';
+    const newRN = rankChanged && newRank ? (tr[newRank] || newRank) : '';
+
+    if (theme === 'anime') {
+      const bounty = Math.pow(newLevel, 2) * 1000000;
+      return {
+        head: 'BOUNTY INCREASED',
+        num:  '฿ ' + bounty.toLocaleString(),
+        sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+      };
+    }
+    if (theme === 'forge') {
+      return {
+        head: 'FORGED',
+        num:  'LVL ' + newLevel,
+        sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+      };
+    }
+    return {
+      head: 'LEVEL UP!',
+      num:  'LVL ' + newLevel,
+      sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+    };
   }
 
   // ══════════════════════════════════════════
@@ -791,14 +1024,14 @@
   // All available themes — single source of truth
   // Theme-specific rank title overrides
   const ANIME_RANKS = {
-    'INITIATE':    'ACADEMY',
-    'APPRENTICE':  'GENIN',
-    'OPERATOR':    'CHUNIN',
-    'SPECIALIST':  'JONIN',
-    'VETERAN':     'ANBU',
-    'ELITE':       'KAGE',
-    'COMMANDER':   'HOKAGE',
-    'LEGEND':      'LEGEND'
+    'INITIATE':    'CABIN BOY',
+    'APPRENTICE':  'SAILOR',
+    'OPERATOR':    'PIRATE',
+    'SPECIALIST':  'SUPER ROOKIE',
+    'VETERAN':     'CAPTAIN',
+    'ELITE':       'WARLORD',
+    'COMMANDER':   'EMPEROR',
+    'LEGEND':      'PIRATE KING'
   };
 
   const HEISENBERG_RANKS = {
@@ -941,7 +1174,7 @@
       barClass: 'anime-bar',
       accentClass: 'preview-accent-anime',
       lineClass: 'anime-line',
-      desc: 'Deep navy. Neon pink. Shinobi ranks.'
+      desc: 'Grand Line. Sun gold. Pirate ranks.'
     }
   ];
 
@@ -1010,10 +1243,30 @@
   let _editingGoalWeekCount = 4;
   let _goalBeingMoved  = null; // task id being moved (mobile)
 
+  // Desktop (≥1024px) shows plan mode as a 3-column master-detail.
+  const _isDesktop = () => window.matchMedia && window.matchMedia('(min-width:1024px)').matches;
+  function _renderPlanHint(el, msg) {
+    el.innerHTML = `<div class="plan-empty-state plan-hint">${msg}</div>`;
+  }
+
   function renderPlanMode() {
     showPlanView('pillars');
     renderPillarList();
     renderPillarForm(null);
+
+    if (_isDesktop()) {
+      // Seed columns 2 & 3 with hints (CSS shows all three columns at ≥1024px)
+      _activePillarId = null;
+      _activeGoalId = null;
+      const goalsName = $('goals-pillar-name');
+      if (goalsName) goalsName.textContent = 'GOALS';
+      _renderPlanHint($('plan-goals-list'), 'Select a pillar to see its goals.');
+      const weekTitle = $('weeks-goal-title');
+      const weekProg  = $('weeks-goal-progress');
+      if (weekTitle) weekTitle.textContent = 'WEEKS';
+      if (weekProg)  weekProg.textContent = '';
+      _renderPlanHint($('weeks-content'), 'Select a goal to plan its weeks.');
+    }
   }
 
   function showPlanView(view) {
@@ -1141,6 +1394,16 @@
     $('btn-add-goal').classList.remove('hidden');
     renderGoalsList();
     showPlanView('goals');
+
+    if (_isDesktop()) {
+      // Switching pillar resets goal selection → col 3 shows a hint
+      _activeGoalId = null;
+      const weekTitle = $('weeks-goal-title');
+      const weekProg  = $('weeks-goal-progress');
+      if (weekTitle) weekTitle.textContent = 'WEEKS';
+      if (weekProg)  weekProg.textContent = '';
+      _renderPlanHint($('weeks-content'), 'Select a goal to plan its weeks.');
+    }
   }
 
   // ── GOALS ──
@@ -2280,12 +2543,14 @@
       // Update both switchers (dashboard + plan view)
       ['mode-forge', 'plan-mode-forge'].forEach(id => $$(id) && $$(id).classList.add('active'));
       ['mode-plan',  'plan-mode-plan' ].forEach(id => $$(id) && $$(id).classList.remove('active'));
+      setRailNav('dashboard');
       showView('dashboard');
       renderDashboard();
     }
     function switchToPlan() {
       ['mode-plan',  'plan-mode-plan' ].forEach(id => $$(id) && $$(id).classList.add('active'));
       ['mode-forge', 'plan-mode-forge'].forEach(id => $$(id) && $$(id).classList.remove('active'));
+      setRailNav('plan');
       renderPlanMode();
       showView('plan');
     }
@@ -2321,6 +2586,41 @@
       setTimeout(() => { renderSettings(); renderAccountInfo(); showView('settings'); }, 200);
     });
 
+    // PLAN reachable from drawer on mobile (top-bar mode-switcher moved to rail)
+    $('drawer-plan') && $('drawer-plan').addEventListener('click', () => {
+      closeDrawer();
+      setTimeout(() => switchToPlan(), 200);
+    });
+
+    // ── RAIL NAV (desktop sidebar) ──
+    // Highlights the active rail item; function-declaration-hoisted so switchTo* can call it.
+    function setRailNav(view) {
+      const map = {
+        dashboard: 'mode-forge', plan: 'mode-plan',
+        tasks: 'rail-tasks', history: 'rail-history',
+        shop: 'rail-shop', settings: 'rail-settings'
+      };
+      const activeId = map[view];
+      ['mode-forge','mode-plan','rail-tasks','rail-history','rail-shop','rail-settings']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.toggle('active', id === activeId);
+        });
+    }
+
+    $('rail-tasks') && $('rail-tasks').addEventListener('click', () => {
+      renderTaskList(); showView('tasks'); setRailNav('tasks');
+    });
+    $('rail-history') && $('rail-history').addEventListener('click', () => {
+      renderHistory(); showView('history'); setRailNav('history');
+    });
+    $('rail-shop') && $('rail-shop').addEventListener('click', () => {
+      renderShop(); showView('shop'); setRailNav('shop');
+    });
+    $('rail-settings') && $('rail-settings').addEventListener('click', () => {
+      renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');
+    });
+
     // Keep old btn-open-tasks as fallback (no longer in UI but safe to keep)
     $('btn-open-tasks') && $('btn-open-tasks').addEventListener('click', () => {
       renderTaskList();
@@ -2334,6 +2634,15 @@
     $('btn-add-task').addEventListener('click', addTask);
     $('input-task').addEventListener('keydown', e => {
       if (e.key === 'Enter') addTask();
+    });
+
+    // Quick-add collapse toggle
+    $('btn-toggle-quick-add').addEventListener('click', () => {
+      const form   = $('quick-add-form');
+      const toggle = $('btn-toggle-quick-add');
+      const hidden = form.classList.toggle('hidden');
+      toggle.textContent = hidden ? '+ ADD QUEST' : '− COLLAPSE';
+      if (!hidden) $('input-task').focus();
     });
 
     // Difficulty buttons
@@ -2743,6 +3052,18 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  let _toastTimer2 = null;
+  function showToast(msg, type = '', duration = 2000) {
+    const toast = $('toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.className = 'toast' + (type ? ' ' + type : '');
+    void toast.offsetWidth; // restart the transition
+    toast.classList.add('visible');
+    if (_toastTimer2) clearTimeout(_toastTimer2);
+    _toastTimer2 = setTimeout(() => toast.classList.remove('visible'), duration);
   }
 
   function flashElement(el, text) {

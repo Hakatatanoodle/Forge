@@ -886,6 +886,48 @@
   <script src="timer.js"></script>
   <script src="sound.js"></script>
   <script src="firebase.js"></script>
+  <script>
+window.__smokeErrors = [];
+window.onerror = function(m,s,l,c){ window.__smokeErrors.push(m + ' @' + (l||'?') + ':' + (c||'?')); };
+window.addEventListener('unhandledrejection', function(e){ window.__smokeErrors.push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
+try { localStorage.setItem('forge_state', "{\"user\":{\"name\":\"TARA\",\"xp\":0,\"level\":1,\"totalSessions\":0,\"rank\":\"INITIATE\",\"coins\":0,\"unlockedThemes\":[\"forge\",\"venom\"],\"activeTheme\":\"forge\",\"streak\":{\"current\":0,\"longest\":0,\"lastActiveDate\":null,\"freezesAvailable\":0}},\"tasks\":[{\"id\":\"t1\",\"text\":\"Revise chapter 5\",\"tag\":\"academics\",\"goalId\":null,\"weekId\":null,\"completed\":false,\"xpMultiplier\":1.5,\"createdAt\":\"2026-08-11T08:00:00Z\",\"completedAt\":null},{\"id\":\"t2\",\"text\":\"Ship the 404 fix\",\"tag\":\"gamedev\",\"goalId\":null,\"weekId\":null,\"completed\":false,\"xpMultiplier\":1,\"createdAt\":\"2026-08-11T08:05:00Z\",\"completedAt\":null}],\"sessions\":[],\"today\":{\"date\":\"2026-08-11\",\"sessionsCompleted\":0},\"settings\":{\"workMinutes\":50,\"breakMinutes\":10,\"soundEnabled\":false,\"summaryDay\":0,\"lastSummaryWeek\":null},\"pillars\":[{\"id\":\"academics\",\"name\":\"ACADEMICS\",\"color\":\"#4caf7d\",\"icon\":\"📚\"},{\"id\":\"gamedev\",\"name\":\"GAMEDEV\",\"color\":\"#7b9de8\",\"icon\":\"🎮\"},{\"id\":\"other\",\"name\":\"OTHER\",\"color\":\"#888880\",\"icon\":\"◎\"}],\"goals\":[],\"weeks\":[]}"); } catch(e){ window.__smokeErrors.push('seed: ' + e.message); }
+window.FB = window.FB || {};
+window.FB.init = function(cb){ setTimeout(function(){ cb(null); }, 50); };
+window.FB.loadState = function(){ return Promise.resolve({ ok:true, state:null }); };
+window.FB.saveState = function(){ return Promise.resolve({ ok:true }); };
+window.FB.saveSession = function(){ return Promise.resolve({ ok:true }); };
+window.FB.getCurrentUser = function(){ return null; };
+window.FB.isSignedIn = function(){ return false; };
+window.FB.signInWithGoogle = function(){ return Promise.resolve({ ok:false }); };
+window.FB.signOut = function(){ return Promise.resolve({ ok:true }); };
+window.FB.deleteUserData = function(){ return Promise.resolve({ ok:true }); };
+
+var R = [];
+var btn = function(id){ var b = document.getElementById(id); if(!b) R.push('MISSING: '+id); return b; };
+setTimeout(function(){ btn('btn-offline-enter').click(); }, 800);            // dashboard
+setTimeout(function(){ btn('btn-start-session').click(); }, 1200);           // intention
+setTimeout(function(){ btn('btn-intention-confirm').click(); }, 1600);       // LOCK IN -> session
+setTimeout(function(){ btn('btn-complete-session').click(); }, 2600);        // complete -> reward
+setTimeout(function(){ btn('btn-task-done').click(); }, 6500);               // task done -> bonus -> break
+setTimeout(function(){ btn('btn-skip-break').click(); }, 8300);              // skip break -> dashboard
+setTimeout(function(){
+  var st = JSON.parse(localStorage.getItem('forge_state'));
+  var hero = (document.getElementById('current-task-display')||{}).textContent || '-';
+  R.push('VIEW: ' + (document.querySelector('.view.active')||{}).id);
+  R.push('HERO_NOW: ' + hero.replace(/\s+/g,' ').trim());
+  R.push('totalSessions: ' + st.user.totalSessions);
+  R.push('sessionsLogged: ' + st.sessions.length);
+  R.push('sessionIntention: ' + (st.sessions[0] ? st.sessions[0].intention : '-'));
+  R.push('sessionXp: ' + (st.sessions[0] ? st.sessions[0].xpEarned : '-'));
+  R.push('userXp: ' + st.user.xp + '  coins: ' + st.user.coins + '  streak: ' + st.user.streak.current + '  level: ' + st.user.level);
+  R.push('todaySessions: ' + st.today.sessionsCompleted);
+  R.push('t1Completed: ' + st.tasks.find(function(t){return t.id==='t1';}).completed);
+  R.push('questsPending: ' + st.tasks.filter(function(t){return !t.completed;}).length);
+  var p = document.createElement('pre'); p.id='smoke-report';
+  p.textContent = R.join('\n') + '\nERRORS: ' + (window.__smokeErrors.length ? window.__smokeErrors.join(' || ') : 'NONE');
+  document.body.appendChild(p);
+}, 8800);
+</script>
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

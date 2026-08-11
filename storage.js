@@ -120,3 +120,7 @@ const Storage = (() => {
   return { load, save, reset, uuid, todayStr, defaultState, deepMerge };
 
 })();
+
+// Expose for classic-script consumers (tests.js reads window.Storage).
+// `const Storage` above is a global lexical binding, not a window property.
+if (typeof window !== 'undefined') window.Storage = Storage;
