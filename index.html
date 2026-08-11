@@ -810,7 +810,15 @@
             </div>
           </div>
           <span class="plan-title">PLAN MODE</span>
-          <span class="plan-subtitle">PILLARS · GOALS · WEEKS</span>
+          <span class="plan-subtitle">PILLARS · GOALS · THIS WEEK</span>
+
+          <!-- ── Plan tab bar ── -->
+          <div class="plan-tabbar" id="plan-tabbar">
+            <button class="plan-tab active" id="plan-tab-pillars">PILLARS</button>
+            <button class="plan-tab" id="plan-tab-goals">GOALS</button>
+            <button class="plan-tab" id="plan-tab-weeks">THIS WEEK</button>
+            <button class="plan-tab" id="plan-tab-tasks">TASKS</button>
+          </div>
 
         </div>
 
@@ -867,6 +875,18 @@
               <button id="btn-goal-save" class="btn-primary">SAVE</button>
             </div>
           </div>
+        </div>
+
+        <!-- ── THIS WEEK VIEW (weekboard kanban) ── -->
+        <div id="plan-view-weekboard" class="hidden">
+          <div class="plan-section-label">THIS WEEK · SCHEDULE</div>
+          <div class="weekboard-columns" id="weekboard-columns"></div>
+        </div>
+
+        <!-- ── TASKS VIEW (queue) ── -->
+        <div id="plan-view-tasks" class="hidden">
+          <div class="plan-section-label">TASK QUEUE</div>
+          <div id="plan-task-list" class="task-list"></div>
         </div>
 
         <!-- ── GOAL DETAIL VIEW (weeks + tasks) ── -->

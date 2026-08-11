@@ -4233,23 +4233,105 @@ body.no-rail #rail { display: none !important; }
   padding: 20px 20px 10px;
 }
 
+/* ── Plan tab bar ── */
+.plan-tabbar {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-tab {
+  flex: 1;
+  padding: 10px 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.plan-tab:hover { color: var(--text-primary); }
+.plan-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* Pillar list items */
 .plan-pillars-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   padding: 0 16px;
-  gap: 8px;
+  gap: 10px;
+}
+
+@media (min-width: 768px) {
+  .plan-pillars-list {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
 }
 
 .plan-pillar-item {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--pillar-color, var(--accent));
+  border-top: 3px solid var(--pillar-color, var(--accent));
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.plan-pillar-item:hover {
+  border-color: var(--pillar-color, var(--accent));
+  transform: translateY(-1px);
+}
+
+/* Pillar card progress row */
+.plan-pillar-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.plan-pillar-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-4);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.plan-pillar-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--pillar-color, var(--accent));
+  transition: width 0.3s ease;
+}
+
+.plan-pillar-pct {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--pillar-color, var(--accent));
+  flex-shrink: 0;
+}
+
+.plan-pillar-chevron {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.5;
 }
 
 .plan-pillar-icon {
@@ -4475,6 +4557,7 @@ body.no-rail #rail { display: none !important; }
   border-left: 3px solid var(--pillar-color, var(--accent));
   border-radius: var(--radius-md);
   padding: 14px 14px 12px;
+  cursor: pointer;
   transition: border-color 0.15s ease;
 }
 
@@ -5293,6 +5376,66 @@ body.no-rail #rail { display: none !important; }
   border-top: 1px dashed var(--accent);
 }
 
+/* ── THIS WEEK weekboard kanban ── */
+.weekboard-columns {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  align-items: flex-start;
+  scroll-snap-type: x proximity;
+}
+
+.weekboard-column {
+  scroll-snap-align: start;
+}
+
+.weekboard-column .week-col-header {
+  border-top-color: var(--border-light);
+}
+
+.weekboard-column.is-today .week-col-header {
+  border-top-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.weekboard-column.is-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.weekboard-add-row {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.weekboard-add-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.weekboard-add-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 10px;
+  transition: all 0.15s ease;
+}
+
+.weekboard-add-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.weekboard-column.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
 /* Mobile move sheet */
 .move-task-modal {
   position: fixed;
@@ -5808,37 +5951,25 @@ body.no-rail #rail { display: none !important; }
   }
   #view-dashboard .focus-stats { padding: 28px 32px; }
 
-  /* ── Plan mode: 3-column master-detail ── */
+  /* ── Plan mode: tabbed layout ── */
   .plan-container {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-    align-items: start;
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
     padding-bottom: 24px;
   }
-  .plan-header { grid-column: 1 / -1; }
   .plan-header-top { display: none; }
 
-  #plan-view-pillars,
-  #plan-view-goals,
-  #plan-view-weeks {
-    display: block !important;
-    min-width: 0;
-    border-right: 1px solid var(--border);
-  }
-  #plan-view-pillars { grid-column: 1; }
-  #plan-view-goals   { grid-column: 2; }
-  #plan-view-weeks   { grid-column: 3; border-right: none; }
+  .plan-tabbar { margin-top: 18px; }
 
-  .plan-back-btn { display: none !important; }
-  .plan-goals-header { padding: 20px 16px 0; }
   .plan-section-label { padding: 20px 16px 10px; }
   .plan-hint { opacity: 0.6; font-style: italic; }
 
-  #week-form { grid-column: 1 / -1; }
-
-  /* Weeks columns fit & scroll inside col 3 */
+  /* Goal detail drill-down gets a narrow centered column */
+  #plan-view-weeks { max-width: 860px; margin: 0 auto; width: 100%; }
+  .plan-goals-header { padding: 20px 16px 0; }
   .weeks-columns { padding: 12px 16px; }
-  .week-column { width: 220px; }
+  .week-column { width: 240px; }
 
   /* ── Focus views: centered, scaled up ── */
   .timer-ring-container { width: 380px; height: 380px; }

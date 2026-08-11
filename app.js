@@ -617,6 +617,7 @@
     saveState();
     renderTaskList();
     renderDashboard();
+    _refreshPlanPanels();
   }
 
   function markTaskComplete(id) {
@@ -626,6 +627,12 @@
       task.completedAt = new Date().toISOString();
       saveState();
     }
+  }
+
+  // Refresh plan THIS WEEK / TASKS panels whenever tasks change elsewhere
+  function _refreshPlanPanels() {
+    if ($('weekboard-columns')) renderWeekBoard();
+    if ($('plan-task-list'))    renderTaskList('plan-task-list');
   }
 
   function getPillarById(id) {
@@ -660,9 +667,9 @@
     });
   }
 
-  function renderTaskList() {
+  function renderTaskList(target) {
     // completed tasks go to bottom
-    const list = $('task-list');
+    const list = $(target || 'task-list');
     const tasks = state.tasks;
 
     if (!tasks.length) {
@@ -712,7 +719,7 @@
       check.addEventListener('click', e => {
         e.stopPropagation();
         markTaskComplete(check.dataset.complete);
-        renderTaskList();
+        renderTaskList(target);
         renderDashboard();
         Sound.xpGain();
       });
@@ -1404,30 +1411,46 @@
   }
 
   function renderPlanMode() {
-    showPlanView('pillars');
+    showPlanTab('pillars');
     renderPillarList();
     renderPillarForm(null);
+    renderWeekBoard();
+  }
 
-    if (_isDesktop()) {
-      // Seed columns 2 & 3 with hints (CSS shows all three columns at ≥1024px)
-      _activePillarId = null;
-      _activeGoalId = null;
-      const goalsName = $('goals-pillar-name');
-      if (goalsName) goalsName.textContent = 'GOALS';
-      _renderPlanHint($('plan-goals-list'), 'Select a pillar to see its goals.');
-      const weekTitle = $('weeks-goal-title');
-      const weekProg  = $('weeks-goal-progress');
-      if (weekTitle) weekTitle.textContent = 'WEEKS';
-      if (weekProg)  weekProg.textContent = '';
-      _renderPlanHint($('weeks-content'), 'Select a goal to plan its weeks.');
-    }
+  // ── Plan tab bar (PILLARS / GOALS / THIS WEEK / TASKS) ──
+  function showPlanTab(tab) {
+    const panelMap = {
+      pillars: 'plan-view-pillars',
+      goals:   'plan-view-goals',
+      weeks:   'plan-view-weekboard',
+      tasks:   'plan-view-tasks'
+    };
+    ['plan-view-pillars','plan-view-goals','plan-view-weeks','plan-view-weekboard','plan-view-tasks'].forEach(id => {
+      const el = $(id);
+      if (el) el.classList.toggle('hidden', id !== panelMap[tab]);
+    });
+    ['pillars','goals','weeks','tasks'].forEach(t => {
+      const btn = $(`plan-tab-${t}`);
+      if (btn) btn.classList.toggle('active', t === tab);
+    });
   }
 
   function showPlanView(view) {
-    ['pillars','goals','weeks'].forEach(v => {
-      const el = $(`plan-view-${v}`);
-      if (el) el.classList.toggle('hidden', v !== view);
-    });
+    if (view === 'weeks') {
+      // Goal-detail drill-down — hides every tab panel, keeps GOALS tab active
+      ['plan-view-pillars','plan-view-goals','plan-view-weekboard','plan-view-tasks'].forEach(id => {
+        const el = $(id);
+        if (el) el.classList.add('hidden');
+      });
+      const weeks = $('plan-view-weeks');
+      if (weeks) weeks.classList.remove('hidden');
+      ['pillars','goals','weeks','tasks'].forEach(t => {
+        const btn = $(`plan-tab-${t}`);
+        if (btn) btn.classList.toggle('active', t === 'goals');
+      });
+      return;
+    }
+    showPlanTab(view === 'pillars' ? 'pillars' : 'goals');
   }
 
   function renderPillarList() {
@@ -1442,33 +1465,10 @@
     list.innerHTML = pillars.map((p, i) => {
       const goalCount = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active').length;
       const taskCount = (state.tasks || []).filter(t => t.tag === p.id && !t.completed).length;
-      // Inline goal progress for this pillar
-      const activeGoals = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active');
-      const goalsHTML = activeGoals.map(g => {
-        const gTasks = (state.tasks || []).filter(t => t.goalId === g.id);
-        const gDone  = gTasks.filter(t => t.completed).length;
-        const gTotal = gTasks.length;
-        const pct    = gTotal > 0 ? Math.min(100, Math.round(gDone/gTotal*100)) : 0;
-        const daysLeft = _daysUntil(g.deadline);
-        let deadlineStr = '';
-        if (g.deadline) {
-          if (daysLeft < 0)       deadlineStr = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
-          else if (daysLeft <= 7) deadlineStr = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
-          else                    deadlineStr = `<span class="goal-weeks">${_weeksUntil(g.deadline)}w LEFT</span>`;
-        }
-        return `<div class="pillar-goal-row" data-goal-id="${g.id}" data-pillar-id="${p.id}">
-          <div class="pillar-goal-top">
-            <span class="pillar-goal-name">${escHtml(g.title)}</span>
-            <div class="pillar-goal-right">
-              ${deadlineStr}
-              <span class="goal-sessions-count">${gDone}/${gTotal}</span>
-            </div>
-          </div>
-          ${gTotal > 0 ? `<div class="goal-progress-bar" style="margin-top:4px">
-            <div class="goal-progress-fill" style="width:${pct}%;background:${p.color}"></div>
-          </div>` : ''}
-        </div>`;
-      }).join('');
+      // Overall pillar progress = completed / total tasks under this pillar
+      const allTasks = (state.tasks || []).filter(t => t.tag === p.id);
+      const done     = allTasks.filter(t => t.completed).length;
+      const pct      = allTasks.length > 0 ? Math.min(100, Math.round(done/allTasks.length*100)) : 0;
 
       return `
         <div class="plan-pillar-item" style="--pillar-color:${p.color}" data-pillar-id="${p.id}">
@@ -1481,29 +1481,24 @@
             <div class="plan-pillar-actions">
               <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
               <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
-              <span class="pillar-chevron">→</span>
             </div>
           </div>
-          ${goalsHTML ? `<div class="pillar-goals-preview">${goalsHTML}</div>` : ''}
+          <div class="plan-pillar-progress-row">
+            <div class="plan-pillar-progress-bar">
+              <div class="plan-pillar-progress-fill" style="width:${pct}%"></div>
+            </div>
+            <span class="plan-pillar-pct">${pct}%</span>
+          </div>
+          <span class="plan-pillar-chevron">→</span>
         </div>`;
     }).join('');
 
     // Tap pillar to open goals
     list.querySelectorAll('.plan-pillar-item').forEach(item => {
       item.addEventListener('click', e => {
-        if (e.target.closest('.pillar-action-btn') || e.target.closest('.pillar-goal-row')) return;
+        if (e.target.closest('.pillar-action-btn')) return;
         Sound.click();
         openPillarGoals(item.dataset.pillarId);
-      });
-    });
-
-    // Tap inline goal row → open that goal's weeks directly
-    list.querySelectorAll('.pillar-goal-row').forEach(row => {
-      row.addEventListener('click', e => {
-        e.stopPropagation();
-        Sound.click();
-        _activePillarId = row.dataset.pillarId;
-        openGoalWeeks(row.dataset.goalId);
       });
     });
 
@@ -1548,16 +1543,6 @@
     $('btn-add-goal').classList.remove('hidden');
     renderGoalsList();
     showPlanView('goals');
-
-    if (_isDesktop()) {
-      // Switching pillar resets goal selection → col 3 shows a hint
-      _activeGoalId = null;
-      const weekTitle = $('weeks-goal-title');
-      const weekProg  = $('weeks-goal-progress');
-      if (weekTitle) weekTitle.textContent = 'WEEKS';
-      if (weekProg)  weekProg.textContent = '';
-      _renderPlanHint($('weeks-content'), 'Select a goal to plan its weeks.');
-    }
   }
 
   // ── GOALS ──
@@ -1608,6 +1593,14 @@
           </div>` : ''}
         </div>`;
     }).join('');
+
+    // Click the whole card to open weeks (matches pillar-card behavior)
+    list.querySelectorAll('.plan-goal-card').forEach(card => {
+      card.addEventListener('click', () => {
+        Sound.click();
+        openGoalWeeks(card.dataset.goalId);
+      });
+    });
 
     list.querySelectorAll('.open-weeks-btn').forEach(btn => {
       btn.addEventListener('click', e => { e.stopPropagation(); openGoalWeeks(btn.dataset.id); });
@@ -1890,6 +1883,194 @@
         });
       });
     }
+  }
+
+  // ── THIS WEEK weekboard (Mon–Sun + UNASSIGNED kanban) ──
+  function renderWeekBoard() {
+    const container = $('weekboard-columns');
+    if (!container) return;
+
+    const MON_FIRST = [1,2,3,4,5,6,0]; // getDay() order → Mon-first display
+    const DAY_NAMES = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+    const todayDow  = new Date().getDay();
+    const isMobile  = !_isDesktop();
+    const tasks     = state.tasks || [];
+
+    // Monday of the current week
+    const monday = new Date(); monday.setHours(0,0,0,0);
+    monday.setDate(monday.getDate() - ((todayDow + 6) % 7));
+
+    let html = MON_FIRST.map((dow, i) => {
+      const dayTasks = tasks.filter(t => (t.day ?? null) === dow);
+      const dayDate  = new Date(monday); dayDate.setDate(monday.getDate() + i);
+      const short    = dayDate.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+      const today    = dow === todayDow;
+
+      return `
+        <div class="week-column weekboard-column ${today ? 'is-today' : ''} ${isMobile ? '' : 'desktop-drop-zone'}"
+             data-day="${dow}">
+          <div class="week-col-header">
+            <span class="week-col-label">${DAY_NAMES[i]}${today ? ' · TODAY' : ''}</span>
+            <span class="week-col-count">${dayTasks.length}</span>
+          </div>
+          <div class="week-col-dates">${short}</div>
+          <div class="week-tasks-list">
+            ${renderWeekBoardTasks(dayTasks, isMobile)}
+          </div>
+          <div class="weekboard-add-row">
+            <input type="text" class="text-input weekboard-add-input" data-day="${dow}" placeholder="+ ADD TASK" maxlength="80" />
+            <button class="weekboard-add-btn" data-day="${dow}">+</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    // UNASSIGNED column
+    const unassigned = tasks.filter(t => t.day === null || t.day === undefined);
+    html += `
+      <div class="week-column weekboard-column unassigned-col ${isMobile ? '' : 'desktop-drop-zone'}" data-day="none">
+        <div class="week-col-header">
+          <span class="week-col-label">UNASSIGNED</span>
+          <span class="week-col-count">${unassigned.length}</span>
+        </div>
+        <div class="week-tasks-list">
+          ${renderWeekBoardTasks(unassigned, isMobile)}
+        </div>
+        <div class="weekboard-add-row">
+          <input type="text" class="text-input weekboard-add-input" data-day="none" placeholder="+ ADD TASK" maxlength="80" />
+          <button class="weekboard-add-btn" data-day="none">+</button>
+        </div>
+      </div>`;
+
+    container.innerHTML = html;
+    _bindWeekBoardEvents(isMobile);
+  }
+
+  function renderWeekBoardTasks(tasks, isMobile) {
+    tasks = [...tasks].sort((a,b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
+    if (!tasks.length) return `<div class="week-empty">EMPTY</div>`;
+    return tasks.map(task => {
+      const pillar = getPillarById(task.tag);
+      return `
+        <div class="week-task-item ${task.completed ? 'is-done' : ''}"
+             data-task-id="${task.id}"
+             ${isMobile ? '' : 'draggable="true"'}>
+          <span class="drag-handle">⠿</span>
+          <span class="week-task-check ${task.completed ? 'checked' : ''}" data-task-id="${task.id}">
+            ${task.completed ? '✓' : '○'}
+          </span>
+          <span class="week-task-text">${escHtml(task.text)}</span>
+          <span class="week-task-tag" style="color:${pillar.color};flex-shrink:0">${pillar.icon}</span>
+          <div class="week-task-actions">
+            <button class="week-task-del-btn" data-task-id="${task.id}">✕</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function _bindWeekBoardEvents(isMobile) {
+    const board      = $('weekboard-columns');
+    const dayFromCol = col => col.dataset.day === 'none' ? null : parseInt(col.dataset.day, 10);
+    const refresh    = () => { renderWeekBoard(); renderDashboard(); };
+    if (!board) return;
+
+    // Add task per column
+    board.querySelectorAll('.weekboard-add-btn').forEach(btn => {
+      btn.addEventListener('click', () => _addWeekBoardTask(dayFromCol(btn.closest('.weekboard-column'))));
+    });
+    board.querySelectorAll('.weekboard-add-input').forEach(input => {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') _addWeekBoardTask(dayFromCol(input.closest('.weekboard-column')));
+      });
+    });
+
+    // Check off tasks
+    board.querySelectorAll('.week-task-check').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const task = state.tasks.find(t => t.id === btn.dataset.taskId);
+        if (!task) return;
+        if (!task.completed) {
+          task.completed = true;
+          task.completedAt = new Date().toISOString();
+          Sound.taskDone();
+        } else {
+          task.completed = false;
+          task.completedAt = null;
+        }
+        saveState(); refresh();
+      });
+    });
+
+    // Delete tasks
+    board.querySelectorAll('.week-task-del-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.tasks = state.tasks.filter(t => t.id !== btn.dataset.taskId);
+        saveState(); refresh();
+      });
+    });
+
+    // DESKTOP: drag between days
+    if (!isMobile) {
+      let dragTaskId = null;
+      board.querySelectorAll('.week-task-item').forEach(item => {
+        item.addEventListener('dragstart', e => {
+          dragTaskId = item.dataset.taskId;
+          item.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', () => {
+          item.classList.remove('dragging');
+          board.querySelectorAll('.weekboard-column').forEach(c => c.classList.remove('drag-over'));
+        });
+      });
+
+      board.querySelectorAll('.weekboard-column').forEach(col => {
+        col.addEventListener('dragover', e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          col.classList.add('drag-over');
+        });
+        col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+        col.addEventListener('drop', e => {
+          e.preventDefault();
+          col.classList.remove('drag-over');
+          if (!dragTaskId) return;
+          const task = state.tasks.find(t => t.id === dragTaskId);
+          if (task) {
+            task.day = dayFromCol(col);
+            saveState(); refresh(); Sound.click();
+          }
+          dragTaskId = null;
+        });
+      });
+    }
+  }
+
+  function _addWeekBoardTask(day) {
+    const col = day === null
+      ? document.querySelector('.weekboard-column[data-day="none"]')
+      : document.querySelector(`.weekboard-column[data-day="${day}"]`);
+    const input = col ? col.querySelector('.weekboard-add-input') : null;
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    const task = {
+      id:           Storage.uuid(),
+      text,
+      tag:          _selectedPillar || 'other',
+      goalId:       null,
+      weekId:       null,
+      day,
+      completed:    false,
+      xpMultiplier: 1.0,
+      createdAt:    new Date().toISOString(),
+      completedAt:  null
+    };
+    state.tasks.push(task);
+    saveState();
+    renderWeekBoard();
+    renderDashboard();
+    Sound.taskAdded();
   }
 
   function _formatShortDate(dateStr) {
@@ -2932,6 +3113,38 @@
     });
 
     // ── SETTINGS ──
+    // ── PLAN TABS ──
+    $('plan-tab-pillars').addEventListener('click', () => {
+      Sound.click();
+      showPlanTab('pillars');
+      renderPillarList();
+    });
+
+    $('plan-tab-goals').addEventListener('click', () => {
+      Sound.click();
+      if (_activePillarId && (state.pillars || []).some(p => p.id === _activePillarId)) {
+        showPlanTab('goals');
+        renderGoalsList();
+      } else if ((state.pillars || []).length) {
+        openPillarGoals(state.pillars[0].id);
+      } else {
+        showPlanTab('goals');
+        renderGoalsList();
+      }
+    });
+
+    $('plan-tab-weeks').addEventListener('click', () => {
+      Sound.click();
+      showPlanTab('weeks');
+      renderWeekBoard();
+    });
+
+    $('plan-tab-tasks').addEventListener('click', () => {
+      Sound.click();
+      showPlanTab('tasks');
+      renderTaskList('plan-task-list');
+    });
+
     // ── PLAN BACK BUTTONS ──
     $('btn-goals-back').addEventListener('click', () => {
       Sound.click();
