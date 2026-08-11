@@ -836,6 +836,211 @@ body.no-rail #rail { display: none !important; }
 }
 
 /* ══════════════════════════════
+   DASHBOARD REDESIGN COMPONENTS
+══════════════════════════════ */
+
+/* Rail avatar — initials monogram (hidden on mobile top-bar) */
+.rail-avatar {
+  display: none;
+}
+.avatar-initials {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+/* Greeting */
+.dash-greeting {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 24px 24px 0;
+}
+.dash-greeting-line {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.dash-date-line {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* Quote card */
+.quote-card {
+  margin: 14px 24px 0;
+  padding: 12px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+.quote-text {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.quote-text::before { content: '“'; color: var(--accent); }
+.quote-text::after  { content: '”'; color: var(--accent); }
+
+/* Objective progress row (inside the hero) */
+.objective-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 10px;
+}
+.objective-progress-track {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.objective-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--xp-grad);
+  box-shadow: 0 0 8px var(--accent-glow);
+  transition: width .4s ease;
+}
+.objective-progress-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Estimated session XP line */
+.objective-xp-est {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin: -6px 0 12px;
+}
+.objective-xp-est:empty { display: none; }
+
+/* Focus Stats panel */
+.focus-stats {
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.focus-stats-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.focus-stats-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+.focus-stats-day {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+.focus-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.focus-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.focus-stat-val {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+.focus-stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+/* Weekly focus chart (M–S) */
+.week-chart {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 64px;
+  padding: 0 2px;
+}
+.week-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+.week-bar {
+  width: 70%;
+  max-width: 18px;
+  min-height: 2px;
+  background: var(--bg-4);
+  border-radius: 2px 2px 0 0;
+  transition: height .3s ease;
+}
+.week-bar.has-xp {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+.week-bar-col.is-today .week-bar {
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.week-bar-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* Quest rows — per-task XP + done state */
+.quest-xp {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.quest-item.is-done { opacity: .5; }
+.quest-item.is-done .quest-text { text-decoration: line-through; }
+.quest-item.is-done .quest-xp { color: var(--success); background: transparent; border-color: transparent; }
+
+/* ══════════════════════════════
    INTENTION VIEW
 ══════════════════════════════ */
 #view-intention {
@@ -5448,6 +5653,18 @@ body.no-rail #rail { display: none !important; }
   .rail-brand-text { font-size: 34px; letter-spacing: 4px; }
   .rail-brand-sub  { font-size: 9px; letter-spacing: 3px; }
 
+  .rail-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--bg-3), var(--bg-2));
+    border: 1px solid var(--accent-dim);
+    box-shadow: 0 0 18px var(--accent-glow);
+    margin-bottom: 4px;
+  }
   .rail-user {
     flex-direction: column;
     align-items: flex-start;
@@ -5455,6 +5672,7 @@ body.no-rail #rail { display: none !important; }
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
   }
+  .rail-user .rank-label { font-size: 12px; letter-spacing: 2px; color: var(--accent); }
   .rail-user .rank-label { font-size: 10px; letter-spacing: 3px; }
   .rail-user .user-name  { font-size: 18px; letter-spacing: 2px; }
 
@@ -5530,30 +5748,43 @@ body.no-rail #rail { display: none !important; }
   /* Mobile drawer is replaced by the rail on desktop */
   #btn-open-drawer, #nav-drawer, #drawer-backdrop { display: none !important; }
 
-  /* ── Dashboard: 2-column mission console ── */
+  /* ── Dashboard: 3-column command deck (rail | center | side) ── */
   #view-dashboard {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    align-items: start;
   }
 
-  #view-dashboard .focus-block {
-    grid-column: 1;
-    grid-row: 1 / span 2;
+  #view-dashboard .dashboard-center {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 40px 44px;
-    border-bottom: none;
+    min-width: 0;
     border-right: 1px solid var(--border);
+    padding-bottom: 40px;
   }
-  #view-dashboard .quest-section { grid-column: 2; }
-  #view-dashboard .quick-add-section {
-    grid-column: 2;
-    padding: 24px 32px;
+  #view-dashboard .dashboard-side {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
   }
 
-  /* Signature: the lock-in console */
+  /* Greeting + quote at the top of the center column */
+  #view-dashboard .dash-greeting { padding: 40px 44px 0; }
+  #view-dashboard .dash-greeting-line { font-size: 34px; letter-spacing: 3px; }
+  #view-dashboard .quote-card { margin: 16px 44px 0; }
+
+  /* Hero: card treatment */
+  #view-dashboard .focus-block {
+    margin: 28px 44px 0;
+    padding: 32px 34px;
+    background: linear-gradient(160deg, var(--bg-2), var(--bg));
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 40px var(--accent-glow), inset 0 0 60px var(--accent-glow);
+    flex-shrink: 0;
+  }
   #view-dashboard .focus-label { font-size: 10px; letter-spacing: 4px; margin-bottom: 18px; }
   #view-dashboard .task-display { min-height: 90px; align-items: center; }
   #view-dashboard .task-display-content { font-size: 36px; line-height: 1.25; letter-spacing: 1px; }
@@ -5565,6 +5796,17 @@ body.no-rail #rail { display: none !important; }
     margin-top: 8px;
     box-shadow: 0 0 28px var(--accent-glow);
   }
+
+  /* Side column blocks */
+  #view-dashboard .quest-section {
+    padding: 28px 32px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  #view-dashboard .quick-add-section {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  #view-dashboard .focus-stats { padding: 28px 32px; }
 
   /* ── Plan mode: 3-column master-detail ── */
   .plan-container {

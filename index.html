@@ -30,8 +30,12 @@
         <span class="rail-brand-sub">EXECUTION ENGINE</span>
       </div>
 
+      <div class="rail-avatar" id="rail-avatar">
+        <span id="avatar-initials" class="avatar-initials">—</span>
+      </div>
+
       <div class="rail-user">
-        <span id="display-rank" class="rank-label">INITIATE</span>
+        <span id="display-rank" class="rank-label">LVL 1 · INITIATE</span>
         <span id="display-name" class="user-name">—</span>
       </div>
 
@@ -181,47 +185,100 @@
         </div>
       </div>
 
-      <!-- Hero: TODAY'S OBJECTIVE -->
-      <div class="focus-block">
-        <div class="focus-label">TODAY'S OBJECTIVE</div>
-        <div id="current-task-display" class="task-display">
-          <span class="task-empty-state">No tasks queued.<br/>Add one below.</span>
-        </div>
-        <div id="rank-progress-line" class="rank-progress-line"></div>
-        <button id="btn-start-session" class="btn-primary btn-start" disabled>
-          <span class="btn-start-text">▶ START SESSION</span>
-        </button>
-      </div>
+      <!-- ══ CENTER COLUMN — greeting · quote · objective ══ -->
+      <div class="dashboard-center">
 
-      <!-- Today's Quests -->
-      <div class="quest-section">
-        <div class="quest-header">
-          <span class="quest-title">TODAY'S QUESTS</span>
-          <span id="quest-progress" class="quest-progress"></span>
+        <!-- Greeting -->
+        <div class="dash-greeting">
+          <span id="dash-greeting" class="dash-greeting-line">—</span>
+          <span id="dash-date" class="dash-date-line">—</span>
         </div>
-        <div id="quest-list" class="quest-list"></div>
-      </div>
 
-      <!-- Quick Add (collapsed behind toggle) -->
-      <div class="quick-add-section">
-        <button id="btn-toggle-quick-add" class="btn-ghost btn-full quick-add-toggle">+ ADD QUEST</button>
-        <div id="quick-add-form" class="quick-add-form hidden">
-          <div class="quick-add-row">
-            <input type="text" id="input-task" class="text-input task-input" placeholder="what needs to be done?" maxlength="80" />
+        <!-- Quote card -->
+        <div class="quote-card">
+          <span id="quote-text" class="quote-text">—</span>
+        </div>
+
+        <!-- Hero: TODAY'S OBJECTIVE -->
+        <div class="focus-block">
+          <div class="focus-label">TODAY'S OBJECTIVE</div>
+          <div id="current-task-display" class="task-display">
+            <span class="task-empty-state">No tasks queued.<br/>Add one below.</span>
           </div>
-          <div class="pillar-chips-row" id="pillar-chips-row">
-            <!-- Rendered dynamically from state.pillars -->
-          </div>
-          <div class="difficulty-row">
-            <span class="diff-label">DIFFICULTY</span>
-            <div class="diff-buttons">
-              <button class="diff-btn active" data-diff="1">EASY</button>
-              <button class="diff-btn" data-diff="1.5">MEDIUM</button>
-              <button class="diff-btn" data-diff="2">HARD</button>
+          <div id="objective-progress-row" class="objective-progress-row hidden">
+            <div class="objective-progress-track">
+              <div id="objective-progress-fill" class="objective-progress-fill"></div>
             </div>
-            <button id="btn-add-task" class="btn-secondary">+ ADD</button>
+            <span id="objective-progress-label" class="objective-progress-label"></span>
+          </div>
+          <div id="objective-xp-est" class="objective-xp-est"></div>
+          <div id="rank-progress-line" class="rank-progress-line"></div>
+          <button id="btn-start-session" class="btn-primary btn-start" disabled>
+            <span class="btn-start-text">▶ START SESSION</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ══ SIDE COLUMN — quests · quick-add · focus stats ══ -->
+      <div class="dashboard-side">
+
+        <!-- Today's Quests -->
+        <div class="quest-section">
+          <div class="quest-header">
+            <span class="quest-title">TODAY'S QUESTS</span>
+            <span id="quest-progress" class="quest-progress"></span>
+          </div>
+          <div id="quest-list" class="quest-list"></div>
+        </div>
+
+        <!-- Quick Add (collapsed behind toggle) -->
+        <div class="quick-add-section">
+          <button id="btn-toggle-quick-add" class="btn-ghost btn-full quick-add-toggle">+ ADD QUEST</button>
+          <div id="quick-add-form" class="quick-add-form hidden">
+            <div class="quick-add-row">
+              <input type="text" id="input-task" class="text-input task-input" placeholder="what needs to be done?" maxlength="80" />
+            </div>
+            <div class="pillar-chips-row" id="pillar-chips-row">
+              <!-- Rendered dynamically from state.pillars -->
+            </div>
+            <div class="difficulty-row">
+              <span class="diff-label">DIFFICULTY</span>
+              <div class="diff-buttons">
+                <button class="diff-btn active" data-diff="1">EASY</button>
+                <button class="diff-btn" data-diff="1.5">MEDIUM</button>
+                <button class="diff-btn" data-diff="2">HARD</button>
+              </div>
+              <button id="btn-add-task" class="btn-secondary">+ ADD</button>
+            </div>
           </div>
         </div>
+
+        <!-- Focus Stats -->
+        <div class="focus-stats" id="focus-stats">
+          <div class="focus-stats-header">
+            <span class="focus-stats-title">FOCUS STATS</span>
+            <span class="focus-stats-day">TODAY</span>
+          </div>
+          <div class="focus-stats-grid">
+            <div class="focus-stat">
+              <span id="focus-time" class="focus-stat-val">0m</span>
+              <span class="focus-stat-lbl">FOCUS TIME</span>
+            </div>
+            <div class="focus-stat">
+              <span id="focus-sessions" class="focus-stat-val">0</span>
+              <span class="focus-stat-lbl">SESSIONS</span>
+            </div>
+            <div class="focus-stat">
+              <span id="focus-xp" class="focus-stat-val">0</span>
+              <span class="focus-stat-lbl">XP EARNED</span>
+            </div>
+          </div>
+          <div class="week-chart" id="focus-week-chart">
+            <!-- 7 bars Mon–Sun rendered by JS -->
+          </div>
+        </div>
+
       </div>
 
     </div>

@@ -216,14 +216,29 @@
   function renderDashboard() {
     const { user, tasks, today } = state;
 
-    // User info
+    // User info — "LVL 7 · SPECIALIST" identity line (theme-flavored rank)
     const activeTheme = state.user.activeTheme || 'forge';
     const themeRanks = THEME_RANKS[activeTheme];
-    $('display-rank').textContent = (themeRanks && themeRanks[user.rank])
-      ? themeRanks[user.rank]
-      : user.rank;
+    const rankTitle = (themeRanks && themeRanks[user.rank]) ? themeRanks[user.rank] : user.rank;
+    $('display-rank').textContent = `LVL ${user.level} · ${rankTitle}`;
     $('display-name').textContent  = user.name.toUpperCase();
     $('display-level').textContent = user.level;
+
+    // Avatar — initials monogram
+    const avatarEl = $('avatar-initials');
+    if (avatarEl) {
+      const initials = String(user.name || 'OPERATIVE')
+        .trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || 'OP';
+      avatarEl.textContent = initials;
+    }
+
+    // Greeting + date + quote
+    const greetEl = $('dash-greeting');
+    if (greetEl) greetEl.textContent = `${_greeting()}, ${user.name.toUpperCase()}.`;
+    const dateEl = $('dash-date');
+    if (dateEl) dateEl.textContent = _dateLine();
+    const quoteEl = $('quote-text');
+    if (quoteEl) quoteEl.textContent = _quoteOfDay();
 
     // XP bar
     const xpNeeded = XP.xpForLevel(user.level);
@@ -278,6 +293,9 @@
 
     // Today's Quests
     renderQuestList();
+
+    // Focus stats panel (right sidebar)
+    _renderFocusStats();
   }
 
   // ── Rank → next rank math (drives the hero "XP to next rank" line) ──
@@ -293,6 +311,126 @@
     }
     xpNeeded -= (user.xp || 0);
     return { rankTitle: next.title, xpNeeded: Math.max(xpNeeded, 0) };
+  }
+
+  // ── Greeting / date / quote (dashboard center column) ──
+  function _greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'GOOD MORNING';
+    if (h < 18) return 'GOOD AFTERNOON';
+    return 'GOOD EVENING';
+  }
+
+  function _dateLine() {
+    return new Date().toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric'
+    }).toUpperCase();
+  }
+
+  const QUOTES = [
+    'Discipline today, freedom tomorrow.',
+    'Lock in. Focus. Get stronger.',
+    'The grind is the reward.',
+    'Small steps, forged daily.',
+    'Future you is watching. Do not disappoint.',
+    'One session at a time. One level at a time.'
+  ];
+
+  function _quoteOfDay() {
+    const d = new Date();
+    const start = new Date(d.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((d - start) / 86400000);
+    return QUOTES[dayOfYear % QUOTES.length];
+  }
+
+  // ── Objective progress bar on the hero ──
+  // If the task belongs to a goal → goal completion. Otherwise → today's quests.
+  function _objectiveProgress(task) {
+    if (!task) return null;
+    if (task.goalId) {
+      const gTasks = (state.tasks || []).filter(t => t.goalId === task.goalId);
+      const done = gTasks.filter(t => t.completed).length;
+      const total = gTasks.length;
+      if (!total) return { pct: 0, label: '0/0' };
+      return { pct: Math.min(100, Math.round(done / total * 100)), label: `${done}/${total}` };
+    }
+    const all = state.tasks || [];
+    const done = all.filter(t => t.completed).length;
+    const total = all.length;
+    if (!total) return null;
+    return { pct: Math.min(100, Math.round(done / total * 100)), label: `${done}/${total}` };
+  }
+
+  // ── Estimated XP for one session at current settings/streak/level ──
+  function _estimateXP(task) {
+    if (!task) return 0;
+    const mult  = task.xpMultiplier || 1;
+    const mins  = state.settings.workMinutes || 50;
+    const streak = (state.user.streak && state.user.streak.current) || 0;
+    return XP.calculateSessionXP(mult, streak, mins, state.user.level || 1).total;
+  }
+
+  // ── Focus stats (right sidebar) — today + weekly XP chart ──
+  function _inCurrentWeek(date) {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const mon = new Date(now);
+    const dow = now.getDay(); // 0=Sun
+    mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    mon.setHours(0, 0, 0, 0);
+    const day = new Date(date); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((day - mon) / 86400000);
+    return diff >= 0 && diff <= 6;
+  }
+
+  function _computeFocusStats() {
+    const todayStr = Storage.todayStr();
+    const stats = { focusMins: 0, sessions: 0, xpToday: 0, week: [0, 0, 0, 0, 0, 0, 0] };
+    for (const s of state.sessions) {
+      if (!s.startTime) continue;
+      const d  = new Date(s.startTime);
+      const ds = _localDateStr(d);
+      if (ds === todayStr) {
+        stats.sessions++;
+        stats.xpToday += s.xpEarned || 0;
+        if (s.endTime) {
+          stats.focusMins += Math.max(0, Math.round((new Date(s.endTime) - d) / 60000));
+        }
+      }
+      if (_inCurrentWeek(d)) {
+        stats.week[d.getDay()] += s.xpEarned || 0;
+      }
+    }
+    return stats;
+  }
+
+  function _renderFocusStats() {
+    const panel = $('focus-stats');
+    if (!panel) return;
+    const stats = _computeFocusStats();
+
+    const mins = stats.focusMins;
+    const timeEl = $('focus-time');
+    if (timeEl) timeEl.textContent = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+    const sEl = $('focus-sessions');
+    if (sEl) sEl.textContent = stats.sessions;
+    const xEl = $('focus-xp');
+    if (xEl) xEl.textContent = stats.xpToday;
+
+    const chart = $('focus-week-chart');
+    if (!chart) return;
+    const max      = Math.max.apply(null, stats.week.concat([1]));
+    const MON_FIRST = [1, 2, 3, 4, 5, 6, 0]; // getDay() order → Mon-first display
+    const LABELS   = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const todayDow = new Date().getDay();
+    chart.innerHTML = MON_FIRST.map((dayIdx, i) => {
+      const xp  = stats.week[dayIdx];
+      const pct = Math.max(xp > 0 ? 6 : 2, Math.round(xp / max * 100));
+      return `
+        <div class="week-bar-col ${dayIdx === todayDow ? 'is-today' : ''}">
+          <div class="week-bar ${xp > 0 ? 'has-xp' : ''}" style="height:${pct}%"></div>
+          <span class="week-bar-label">${LABELS[i]}</span>
+        </div>`;
+    }).join('');
   }
 
   // ── Pillar picker state — moved up for outer renderPillarChips access ──
@@ -321,6 +459,10 @@
       display.innerHTML = `<span class="task-empty-state">No tasks queued.<br/>Add one below.</span>`;
       startBtn.disabled = true;
       sessionContext.taskId = null;
+      const progRow = $('objective-progress-row');
+      if (progRow) progRow.classList.add('hidden');
+      const xpEst = $('objective-xp-est');
+      if (xpEst) xpEst.textContent = '';
       return;
     }
 
@@ -339,6 +481,23 @@
     startBtn.disabled = false;
     sessionContext.taskId = task.id;
     sessionContext.difficultyMultiplier = task.xpMultiplier || 1.0;
+
+    // Objective progress bar
+    const prog = _objectiveProgress(task);
+    const progRow  = $('objective-progress-row');
+    const progFill = $('objective-progress-fill');
+    const progLbl  = $('objective-progress-label');
+    if (prog && progRow) {
+      progRow.classList.remove('hidden');
+      if (progFill) progFill.style.width = prog.pct + '%';
+      if (progLbl)  progLbl.textContent = `${prog.pct}% · ${prog.label}`;
+    } else if (progRow) {
+      progRow.classList.add('hidden');
+    }
+
+    // Estimated XP for a session on this task
+    const xpEst = $('objective-xp-est');
+    if (xpEst) xpEst.textContent = `⚡ EST +${_estimateXP(task)} XP`;
 
     // highlight the selected quest (if the list is rendered)
     const questList = $('quest-list');
@@ -386,34 +545,27 @@
       return;
     }
 
-    if (!pending.length) {
-      list.innerHTML = `
-        <div class="quest-empty">
-          <span class="quest-empty-text">QUESTS CLEARED ✓</span>
-          <span class="quest-empty-sub">The day is done. Come back tomorrow.</span>
-        </div>`;
-      return;
-    }
-
-    // ── Quest rows ──
-    list.innerHTML = pending.map(t => {
+    // ── Quest rows — pending first, done struck-through at the bottom ──
+    const doneTasks = tasks.filter(t => t.completed);
+    list.innerHTML = [...pending, ...doneTasks].map(t => {
       const pillar    = getPillarById(t.tag);
       const starCount = { 1: 1, 1.5: 2, 2: 3 }[t.xpMultiplier || 1] || 1;
       const stars     = '★'.repeat(starCount);
       const goal      = t.goalId ? (getGoalById(t.goalId)?.title || '') : '';
       return `
-        <button class="quest-item ${t.id === currentId ? 'selected' : ''}" data-task-id="${t.id}">
+        <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''}" data-task-id="${t.id}">
           <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
           <span class="quest-text">${escHtml(t.text)}</span>
           ${goal ? `<span class="quest-goal">▸ ${escHtml(goal)}</span>` : ''}
           <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+          <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>
         </button>`;
     }).join('');
 
     list.querySelectorAll('.quest-item').forEach(item => {
       item.addEventListener('click', () => {
         const t = state.tasks.find(x => x.id === item.dataset.taskId);
-        if (!t) return;
+        if (!t || t.completed) return;
         renderCurrentTask(t); // also re-highlights + sets sessionContext
         Sound.click();
         flashElement(item, 'Objective set');
@@ -444,6 +596,7 @@
       tag,
       goalId:         null,
       weekId:         null,
+      day:            new Date().getDay(), // 0=Sun…6=Sat — THIS WEEK kanban slot
       completed:      false,
       xpMultiplier:   selectedDifficulty,
       createdAt:      new Date().toISOString(),
@@ -1187,7 +1340,8 @@
       if (rankEl) {
         const baseRank = state.user.rank || 'INITIATE';
         const tr = THEME_RANKS[themeId];
-        rankEl.textContent = (tr && tr[baseRank]) ? tr[baseRank] : baseRank;
+        const title = (tr && tr[baseRank]) ? tr[baseRank] : baseRank;
+        rankEl.textContent = `LVL ${state.user.level || 1} · ${title}`;
       }
     }
   }
