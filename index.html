@@ -9,7 +9,7 @@
   <title>FORGE</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -64,16 +64,17 @@
       </div>
 
       <nav class="rail-nav">
-        <button class="mode-btn rail-nav-item active" id="mode-forge">⛏ FORGE</button>
-        <button class="mode-btn rail-nav-item" id="mode-plan">▦ PLAN</button>
-        <button class="rail-nav-item" id="rail-tasks">⊞ TASK QUEUE</button>
-        <button class="rail-nav-item" id="rail-history">◫ COMBAT LOG</button>
-        <button class="rail-nav-item" id="rail-shop">◈ ARMORY</button>
-        <button class="rail-nav-item" id="rail-settings">⚙ SYSTEM CONFIG</button>
+        <button class="mode-btn rail-nav-item active" id="mode-forge"><span class="nav-ico">⛏</span><span class="nav-label">FORGE</span></button>
+        <button class="mode-btn rail-nav-item" id="mode-plan"><span class="nav-ico">▦</span><span class="nav-label">PLAN</span></button>
+        <button class="rail-nav-item" id="rail-tasks"><span class="nav-ico">⊞</span><span class="nav-label">TASK QUEUE</span></button>
+        <button class="rail-nav-item" id="rail-history"><span class="nav-ico">◫</span><span class="nav-label">COMBAT LOG</span></button>
+        <button class="rail-nav-item" id="rail-shop"><span class="nav-ico">◈</span><span class="nav-label">ARMORY</span></button>
+        <button class="rail-nav-item" id="rail-settings"><span class="nav-ico">⚙</span><span class="nav-label">SYSTEM CONFIG</span></button>
       </nav>
 
       <div class="rail-footer">
         <span class="rail-version">FORGE v11.8</span>
+        <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
       <button class="icon-btn rail-burger" id="btn-open-drawer" title="Menu">≡</button>

@@ -118,6 +118,7 @@
     // Single save after all init mutations — awaited to prevent race conditions
     await saveState();
     applyTheme(state.user.activeTheme || 'forge');
+    applyRailCollapsed();
     showAuthLoading(false);
 
     // Check if today is summary day and this week hasn't been shown
@@ -174,6 +175,7 @@
     Storage.save(state);
     Sound.setEnabled(state.settings.soundEnabled !== false);
     applyTheme(state.user.activeTheme || 'forge');
+    applyRailCollapsed();
     showAuthLoading(false);
     if (_shouldShowSummary()) {
       _markSummaryShown();
@@ -189,6 +191,25 @@
   async function saveState() {
     Storage.save(state);
     await FB.saveState(state);
+  }
+
+  // ── COLLAPSIBLE RAIL (desktop sidebar) ──
+  // Mirror state.settings.railCollapsed onto the DOM.
+  function applyRailCollapsed() {
+    const rail = $('rail');
+    const btn  = $('btn-toggle-rail');
+    if (!rail || !btn) return;
+    const collapsed = !!(state.settings && state.settings.railCollapsed);
+    rail.classList.toggle('rail-collapsed', collapsed);
+    btn.textContent = collapsed ? '▶' : '◀';
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  function toggleRail() {
+    state.settings.railCollapsed = !(state.settings && state.settings.railCollapsed);
+    applyRailCollapsed();
+    Sound.click();
+    saveState();
   }
   function checkDayReset() {
     const today = Storage.todayStr();
@@ -2956,6 +2977,9 @@
       renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');
     });
 
+    // ── COLLAPSIBLE RAIL (desktop sidebar) ──
+    $('btn-toggle-rail') && $('btn-toggle-rail').addEventListener('click', toggleRail);
+
     // Keep old btn-open-tasks as fallback (no longer in UI but safe to keep)
     $('btn-open-tasks') && $('btn-open-tasks').addEventListener('click', () => {
       renderTaskList();
@@ -3434,9 +3458,22 @@
   }
 
   function flashElement(el, text) {
-    const orig = el.textContent;
-    el.textContent = text;
-    setTimeout(() => { el.textContent = orig; }, 1200);
+    if (!el) return;
+    // overlay a flash label WITHOUT destroying the element's real content
+    el.querySelector('.flash-label')?.remove();
+    el.classList.add('flash-host'); // position: relative so the overlay anchors here
+    const flash = document.createElement('span');
+    flash.className = 'flash-label';
+    flash.textContent = text;
+    el.appendChild(flash);
+    requestAnimationFrame(() => flash.classList.add('show'));
+    setTimeout(() => {
+      flash.classList.remove('show');
+      setTimeout(() => {
+        flash.remove();
+        el.classList.remove('flash-host');
+      }, 300);
+    }, 1200);
   }
 
   function renderAccountInfo() {
