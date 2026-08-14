@@ -384,8 +384,60 @@
           <button id="btn-complete-session" class="btn-primary btn-complete">✓ COMPLETE</button>
         </div>
 
+        <!-- Mid-session plan trigger -->
+        <button id="btn-open-plan-drawer" class="btn-plan-drawer-trigger">＋ ADD TASK TO GOAL</button>
+
       </div>
+
+      <!-- ── MID-SESSION PLAN DRAWER ── -->
+      <div id="plan-drawer" class="plan-drawer hidden">
+        <div class="plan-drawer-backdrop" id="plan-drawer-backdrop"></div>
+        <div class="plan-drawer-panel" id="plan-drawer-panel">
+
+          <div class="plan-drawer-header">
+            <span class="plan-drawer-title">ADD TASK</span>
+            <span class="plan-drawer-sub">TIMER IS PAUSED</span>
+            <button id="btn-close-plan-drawer" class="plan-drawer-close">✕</button>
+          </div>
+
+          <!-- Task input -->
+          <div class="plan-drawer-field">
+            <label class="plan-drawer-label">TASK</label>
+            <input type="text" id="drawer-task-input" class="text-input plan-drawer-input"
+                   placeholder="what needs doing..." maxlength="80" />
+          </div>
+
+          <!-- Pillar chips -->
+          <div class="plan-drawer-field">
+            <label class="plan-drawer-label">PILLAR</label>
+            <div id="drawer-pillar-chips" class="pillar-chips-row drawer-chips"></div>
+          </div>
+
+          <!-- Goal selector -->
+          <div class="plan-drawer-field">
+            <label class="plan-drawer-label">GOAL <span class="plan-drawer-optional">(optional)</span></label>
+            <select id="drawer-goal-select" class="text-input plan-drawer-select">
+              <option value="">— no goal —</option>
+            </select>
+          </div>
+
+          <!-- Difficulty -->
+          <div class="plan-drawer-field">
+            <label class="plan-drawer-label">DIFFICULTY</label>
+            <div class="drawer-diff-row" id="drawer-diff-row">
+              <button class="drawer-diff-btn active" data-mult="1.0">EASY</button>
+              <button class="drawer-diff-btn" data-mult="1.5">MEDIUM</button>
+              <button class="drawer-diff-btn" data-mult="2.0">HARD</button>
+            </div>
+          </div>
+
+          <button id="btn-drawer-add-task" class="btn-primary plan-drawer-add-btn">＋ ADD TASK</button>
+
+        </div>
+      </div>
+
     </div>
+    
 
     <!-- ════════════════════════════════════════
          VIEW: BREAK

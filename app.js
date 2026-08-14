@@ -940,6 +940,122 @@
     completeSession(true);
   }
 
+  // ══════════════════════════════════════════
+  // MID-SESSION PLAN DRAWER
+  // ══════════════════════════════════════════
+
+  let _drawerDifficulty = 1.0;
+  let _drawerPillar = null;
+
+  function openPlanDrawer() {
+    // Auto-hold the timer while planning
+    if (Timer.isRunning()) {
+      Timer.hold((holdRemain) => {
+        const { mm, ss } = Timer.format(holdRemain);
+        $('hold-countdown').textContent = `${mm}:${ss}`;
+        if (holdRemain <= 0) {
+          $('hold-overlay').classList.add('hidden');
+          $('session-controls').classList.remove('hidden');
+        }
+      });
+      // Don't show hold overlay — drawer takes over the screen
+    }
+
+    // Reset drawer state
+    _drawerDifficulty = 1.0;
+    _drawerPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
+    $('drawer-task-input').value = '';
+
+    // Render pillar chips
+    _renderDrawerPillarChips();
+
+    // Render goal dropdown filtered to selected pillar
+    _renderDrawerGoalSelect();
+
+    // Reset difficulty buttons
+    document.querySelectorAll('.drawer-diff-btn').forEach(btn => {
+      btn.classList.toggle('active', parseFloat(btn.dataset.mult) === 1.0);
+    });
+
+    $('plan-drawer').classList.remove('hidden');
+    setTimeout(() => $('drawer-task-input').focus(), 120);
+  }
+
+  function closePlanDrawer() {
+    $('plan-drawer').classList.add('hidden');
+
+    // Resume timer if it was held by us (hold overlay is NOT showing)
+    if (Timer.isHeld() && $('hold-overlay').classList.contains('hidden')) {
+      Timer.resume();
+    }
+  }
+
+  function _renderDrawerPillarChips() {
+    const row = $('drawer-pillar-chips');
+    const pillars = state.pillars || [];
+    if (!pillars.length) {
+      row.innerHTML = `<span style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);letter-spacing:2px;">NO PILLARS — ADD ONE IN PLAN MODE</span>`;
+      _drawerPillar = 'other';
+      return;
+    }
+    // Ensure selected pillar still exists
+    if (!pillars.some(p => p.id === _drawerPillar)) {
+      _drawerPillar = pillars[0].id;
+    }
+    row.innerHTML = pillars.map(p => `
+      <div class="pillar-chip ${p.id === _drawerPillar ? 'selected' : ''}"
+           data-pillar="${p.id}"
+           style="--pillar-color:${p.color}">
+        <span class="pillar-chip-dot"></span>${p.name}
+      </div>`).join('');
+    row.querySelectorAll('.pillar-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        _drawerPillar = chip.dataset.pillar;
+        _renderDrawerPillarChips();
+        _renderDrawerGoalSelect();
+      });
+    });
+  }
+
+  function _renderDrawerGoalSelect() {
+    const sel = $('drawer-goal-select');
+    const goals = (state.goals || []).filter(g =>
+      g.status !== 'done' && g.pillarId === _drawerPillar
+    );
+    sel.innerHTML = `<option value="">— no goal —</option>` +
+      goals.map(g => `<option value="${g.id}">${g.title}</option>`).join('');
+  }
+
+  function addTaskFromDrawer() {
+    const text = $('drawer-task-input').value.trim();
+    if (!text) {
+      $('drawer-task-input').focus();
+      $('drawer-task-input').placeholder = 'type a task first...';
+      return;
+    }
+
+    const goalId = $('drawer-goal-select').value || null;
+
+    const task = {
+      id:           Storage.uuid(),
+      text,
+      tag:          _drawerPillar || 'other',
+      goalId:       goalId || null,
+      weekId:       null,
+      day:          new Date().getDay(),
+      completed:    false,
+      xpMultiplier: _drawerDifficulty,
+      createdAt:    new Date().toISOString(),
+      completedAt:  null
+    };
+
+    state.tasks.push(task);
+    saveState();
+    Sound.taskAdded();
+    showToast('TASK QUEUED ✓', 'success');
+    closePlanDrawer();
+  }
+
   // Step 5: Manual complete or abandon
   function completeSession(completed) {
     Timer.stop();
@@ -3085,6 +3201,39 @@
     $('btn-abandon-session').addEventListener('click', () => {
       forgeConfirm('Abandon this session? No XP will be earned.', () => {
         completeSession(false);
+      });
+    });
+
+    // ── MID-SESSION PLAN DRAWER ──
+    $('btn-open-plan-drawer').addEventListener('click', () => {
+      Sound.click();
+      openPlanDrawer();
+    });
+
+    $('btn-close-plan-drawer').addEventListener('click', () => {
+      Sound.click();
+      closePlanDrawer();
+    });
+
+    $('plan-drawer-backdrop').addEventListener('click', () => {
+      closePlanDrawer();
+    });
+
+    $('btn-drawer-add-task').addEventListener('click', () => {
+      addTaskFromDrawer();
+    });
+
+    $('drawer-task-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTaskFromDrawer();
+    });
+
+    // Difficulty pill selection inside drawer
+    document.querySelectorAll('.drawer-diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _drawerDifficulty = parseFloat(btn.dataset.mult);
+        document.querySelectorAll('.drawer-diff-btn').forEach(b =>
+          b.classList.toggle('active', b === btn)
+        );
       });
     });
 
