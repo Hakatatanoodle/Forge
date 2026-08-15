@@ -132,7 +132,8 @@ const Storage = (() => {
         }
       });
 
-      if (!Array.isArray(state.milestones)) state.milestones = [];\n    }
+      if (!Array.isArray(state.milestones)) state.milestones = [];
+    }
 
     // ── v12.1 data-hygiene: fix tasks whose text was accidentally set to
     //    their goal's title (a bug in an earlier addGoalTask implementation).
