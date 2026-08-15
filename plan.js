@@ -189,8 +189,8 @@ const Plan = (() => {
       const dl     = deadlineLabel(g.deadline);
       const isDone = g.status === 'completed';
       return `
-        <button class="obj-card ${isDone ? 'is-done' : ''}" data-goal="${g.id}"
-                style="--pillar:${pillar.color}">
+        <div class="obj-card ${isDone ? 'is-done' : ''}" data-goal="${g.id}"
+             role="button" tabindex="0" style="--pillar:${pillar.color}">
           <div class="obj-card-top">
             <span class="obj-card-icon">${pillar.icon}</span>
             <span class="obj-card-pillar">${ctx.escHtml(pillar.name)}</span>
@@ -205,14 +205,34 @@ const Plan = (() => {
             ${p.estRemaining ? `<span class="obj-card-est">${fmtMins(p.estRemaining)} left</span>` : ''}
             <span class="obj-card-arrow">→</span>
           </div>
-        </button>`;
+          <div class="obj-card-actions">
+            <span class="obj-card-act" data-edit-goal="${g.id}" role="button" tabindex="0" title="Edit goal">EDIT</span>
+            <span class="obj-card-act danger" data-del-goal="${g.id}" role="button" tabindex="0" title="Delete goal">✕</span>
+          </div>
+        </div>`;
     }).join('');
 
     grid.querySelectorAll('.obj-card').forEach(c => {
-      c.addEventListener('click', () => {
+      c.addEventListener('click', e => {
+        // Let the per-card action buttons win the click.
+        if (e.target.closest('[data-edit-goal],[data-del-goal]')) return;
         activeGoalId = c.dataset.goal;
         ctx.sound.click();
         showTab('goal');
+      });
+    });
+
+    grid.querySelectorAll('[data-edit-goal]').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        openGoalModal(b.dataset.editGoal);
+      });
+    });
+
+    grid.querySelectorAll('[data-del-goal]').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        deleteGoal(b.dataset.delGoal);
       });
     });
   }
@@ -564,21 +584,36 @@ const Plan = (() => {
     ctx.onTasksChanged();
   }
 
-  function deleteGoal() {
-    if (!editingGoalId) return;
-    const id = editingGoalId;
-    ctx.forgeConfirm('Delete this goal? Its tasks become goal-less and its milestones are removed.', () => {
-      const s = ctx.getState();
-      s.goals      = (s.goals || []).filter(g => g.id !== id);
-      s.milestones = (s.milestones || []).filter(m => m.goalId !== id);
-      (s.tasks || []).forEach(t => {
+  // Callable from the goal modal OR straight from a goal card's ✕.
+  function deleteGoal(goalId) {
+    const id = goalId || editingGoalId;
+    if (!id) return;
+    const s = ctx.getState();
+    const goal = (s.goals || []).find(g => g.id === id);
+    if (!goal) return;
+
+    const taskCount = (s.tasks || []).filter(t => t.goalId === id).length;
+
+    // Close the modal FIRST — stacking the confirm on top of it reads as
+    // "nothing happened", and it must not linger behind the confirm.
+    closeGoalModal();
+
+    const warn = taskCount
+      ? `Delete "${goal.title}"? Its ${taskCount} task${taskCount === 1 ? '' : 's'} will be kept but unlinked from any goal.`
+      : `Delete "${goal.title}"?`;
+
+    ctx.forgeConfirm(warn, () => {
+      const st = ctx.getState();
+      st.goals      = (st.goals || []).filter(g => g.id !== id);
+      st.milestones = (st.milestones || []).filter(m => m.goalId !== id);
+      (st.tasks || []).forEach(t => {
         if (t.goalId === id) { t.goalId = null; t.milestoneId = null; }
       });
       ctx.save();
-      closeGoalModal();
-      activeGoalId = null;
+      if (activeGoalId === id) activeGoalId = null;
       showTab('objectives');
       ctx.onTasksChanged();
+      ctx.showToast('GOAL DELETED', 'success');
     });
   }
 
@@ -603,7 +638,7 @@ const Plan = (() => {
     $('goal-modal-backdrop').addEventListener('click', closeGoalModal);
     $('btn-goal-cancel')    .addEventListener('click', closeGoalModal);
     $('btn-goal-save')      .addEventListener('click', saveGoal);
-    $('btn-goal-delete')    .addEventListener('click', deleteGoal);
+    $('btn-goal-delete')    .addEventListener('click', () => deleteGoal());
     $('goal-title-input')   .addEventListener('keydown', e => { if (e.key === 'Enter') saveGoal(); });
 
     if (window.Calendar) Calendar.bind(context);
