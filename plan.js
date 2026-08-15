@@ -341,6 +341,26 @@ const Plan = (() => {
 
         <div class="obj-progress gd-progress"><div class="obj-progress-fill" style="width:${p.pct}%"></div></div>
 
+        <!-- Inline add-task form — hidden until + ADD TASK is clicked -->
+        <div class="gd-inline-add hidden" id="gd-inline-add">
+          <div class="gd-inline-add-label">NEW TASK</div>
+          <div class="gd-inline-add-row">
+            <input type="text" id="gd-task-input" class="text-input gd-inline-input"
+                   placeholder="what action moves this forward..." maxlength="80" />
+            <div class="gd-inline-add-meta">
+              <div class="gd-inline-diff-row" id="gd-inline-diff-row">
+                <button class="gd-diff-btn active" data-mult="1.0" title="Easy">EASY</button>
+                <button class="gd-diff-btn" data-mult="1.5" title="Medium">MED</button>
+                <button class="gd-diff-btn" data-mult="2.0" title="Hard">HARD</button>
+              </div>
+              <input type="number" id="gd-task-mins" class="text-input gd-mins"
+                     value="60" min="5" max="600" step="5" title="Estimated minutes" />
+              <button class="btn-primary gd-inline-add-btn" id="gd-task-add">ADD</button>
+              <button class="btn-ghost gd-inline-cancel" id="gd-inline-cancel">✕</button>
+            </div>
+          </div>
+        </div>
+
         <div class="gd-cols">
           <section class="gd-section">
             <div class="gd-section-head">
@@ -348,11 +368,6 @@ const Plan = (() => {
               <span class="gd-section-sub">${p.total} total</span>
             </div>
             <div class="gd-task-list" id="gd-task-list"></div>
-            <div class="gd-add-row">
-              <input type="text" id="gd-task-input" class="text-input" placeholder="what action moves this forward..." maxlength="80" />
-              <input type="number" id="gd-task-mins" class="text-input gd-mins" value="60" min="5" max="600" step="5" />
-              <button class="btn-primary" id="gd-task-add">ADD</button>
-            </div>
           </section>
 
           <section class="gd-section">
@@ -373,7 +388,29 @@ const Plan = (() => {
     renderMilestones(goal, milestones);
 
     $('gd-edit').addEventListener('click', () => openGoalModal(goal.id));
-    $('gd-add-task').addEventListener('click', () => $('gd-task-input').focus());
+
+    // + ADD TASK hero button → expand inline form
+    $('gd-add-task').addEventListener('click', () => {
+      $('gd-inline-add').classList.remove('hidden');
+      $('gd-add-task').classList.add('hidden');
+      setTimeout(() => $('gd-task-input').focus(), 60);
+    });
+
+    // Cancel → collapse form
+    $('gd-inline-cancel').addEventListener('click', () => {
+      $('gd-inline-add').classList.add('hidden');
+      $('gd-add-task').classList.remove('hidden');
+      $('gd-task-input').value = '';
+    });
+
+    // Difficulty pills inside inline form
+    document.querySelectorAll('.gd-diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.gd-diff-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
     $('gd-task-add').addEventListener('click', () => addGoalTask(goal));
     $('gd-task-input').addEventListener('keydown', e => { if (e.key === 'Enter') addGoalTask(goal); });
     $('gd-ms-add').addEventListener('click', () => addMilestone(goal));
@@ -446,6 +483,10 @@ const Plan = (() => {
     const text  = input.value.trim();
     if (!text) { input.focus(); return; }
 
+    // Read difficulty from active pill
+    const activeDiff = document.querySelector('.gd-diff-btn.active');
+    const xpMultiplier = activeDiff ? parseFloat(activeDiff.dataset.mult) : 1.0;
+
     const s = ctx.getState();
     s.tasks.push(Object.assign(Storage.taskDefaults(), {
       id:               Storage.uuid(),
@@ -454,13 +495,17 @@ const Plan = (() => {
       goalId:           goal.id,
       estimatedMinutes: Math.max(5, parseInt(mins.value, 10) || 60),
       completed:        false,
-      xpMultiplier:     1.0,
+      xpMultiplier,
       createdAt:        new Date().toISOString(),
       completedAt:      null
     }));
 
     ctx.save();
     input.value = '';
+    // Reset difficulty to easy and collapse the form
+    document.querySelectorAll('.gd-diff-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    $('gd-inline-add').classList.add('hidden');
+    $('gd-add-task').classList.remove('hidden');
     ctx.sound.taskAdded ? ctx.sound.taskAdded() : ctx.sound.click();
     renderGoalDetail();
     ctx.onTasksChanged();

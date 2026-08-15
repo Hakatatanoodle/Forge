@@ -6150,6 +6150,82 @@ body.no-rail #rail { display: none !important; }
 .gd-add-row .text-input { flex: 1; }
 .gd-mins { max-width: 74px; text-align: center; }
 
+/* ── Inline add-task form ── */
+.gd-inline-add {
+  background: var(--bg-2);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  animation: fadeIn 0.15s ease;
+}
+.gd-inline-add.hidden { display: none; }
+.gd-inline-add-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.gd-inline-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gd-inline-input {
+  width: 100%;
+  font-size: 14px;
+}
+.gd-inline-add-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gd-inline-diff-row {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.gd-diff-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.gd-diff-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-4);
+}
+.gd-diff-btn:hover:not(.active) {
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+.gd-inline-add-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  letter-spacing: 2px;
+  padding: 8px 20px;
+}
+.gd-inline-cancel {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.gd-inline-cancel:hover { color: var(--text-primary); }
+
 .gd-ms {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; background: var(--bg-2);

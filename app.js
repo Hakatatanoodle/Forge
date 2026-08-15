@@ -696,16 +696,6 @@
     const list = $(target || 'task-list');
     const tasks = state.tasks;
 
-    // Keep the quick-add goal picker in sync with current goals.
-    const goalSel = $('tq-goal');
-    if (goalSel) {
-      const prev = goalSel.value;
-      const goals = (state.goals || []).filter(g => g.status !== 'archived');
-      goalSel.innerHTML = `<option value="">— no goal —</option>` +
-        goals.map(g => `<option value="${g.id}">${escHtml(g.title)}</option>`).join('');
-      if (prev && goals.some(g => g.id === prev)) goalSel.value = prev;
-    }
-
     // "12 TASKS · 5 UNSCHEDULED · ~6h 15m"
     const sub = $('tasks-sub');
     if (sub) {
@@ -2537,42 +2527,6 @@
       showView('dashboard');
       renderDashboard();
     });
-
-    // ── TASK QUEUE QUICK-ADD ──
-    // The queue is the task INVENTORY, so it must be possible to add work
-    // here without first drilling into a goal.
-    function _tqAdd() {
-      const input = $('tq-input');
-      const text  = input.value.trim();
-      if (!text) { input.focus(); return; }
-
-      const goalId = $('tq-goal').value || null;
-      const goal   = goalId ? getGoalById(goalId) : null;
-
-      state.tasks.push(Object.assign(Storage.taskDefaults(), {
-        id:               Storage.uuid(),
-        text,
-        tag:              goal ? goal.pillarId : (_selectedPillar || 'other'),
-        goalId:           goalId,
-        estimatedMinutes: Math.max(5, parseInt($('tq-mins').value, 10) || 60),
-        completed:        false,
-        xpMultiplier:     1.0,
-        createdAt:        new Date().toISOString(),
-        completedAt:      null
-      }));
-
-      saveState();
-      input.value = '';
-      input.focus();
-      Sound.taskAdded();
-      showToast('TASK QUEUED ✓', 'success');
-      renderTaskList();
-      renderDashboard();
-      _refreshPlanPanels();
-    }
-
-    $('tq-add-btn').addEventListener('click', _tqAdd);
-    $('tq-input').addEventListener('keydown', e => { if (e.key === 'Enter') _tqAdd(); });
 
     // ── SETTINGS ──
     // ── PLAN MODE ──
