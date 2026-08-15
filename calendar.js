@@ -843,6 +843,32 @@ const Calendar = (() => {
       });
     });
 
+        // Side-rail quick add — creates an UNSCHEDULED task you can then drag
+    // onto the grid. Enter to add, stays focused for rapid entry.
+    const q = $('cal-quick-input');
+    if (q) q.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const text = q.value.trim();
+      if (!text) return;
+      const st = ctx.getState();
+      st.tasks.push(Object.assign(Storage.taskDefaults(), {
+        id:           Storage.uuid(),
+        text,
+        tag:          (st.pillars && st.pillars[0]) ? st.pillars[0].id : 'other',
+        completed:    false,
+        xpMultiplier: 1.0,
+        createdAt:    new Date().toISOString(),
+        completedAt:  null
+      }));
+      ctx.save();
+      q.value = '';
+      ctx.sound.taskAdded ? ctx.sound.taskAdded() : ctx.sound.click();
+      render();
+      ctx.onTasksChanged();
+      const again = $('cal-quick-input');
+      if (again) again.focus();
+    });
+
     $('task-detail-close')   .addEventListener('click', closeTaskDetail);
     $('task-detail-backdrop').addEventListener('click', closeTaskDetail);
 
