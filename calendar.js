@@ -658,7 +658,9 @@ const Calendar = (() => {
         ms.map(m => `<option value="${m.id}">${ctx.escHtml(m.title)}</option>`).join('');
     });
 
-        $('td-delete').addEventListener('click', () => {
+    $('td-save').addEventListener('click', saveTaskDetail);
+
+    $('td-delete').addEventListener('click', () => {
       // Capture the id and close the inspector BEFORE confirming: stacking a
       // dialog on top of the panel reads as "nothing happened", and the panel
       // must not linger behind the confirm.
