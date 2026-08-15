@@ -50,7 +50,9 @@
     assert(def.user.unlockedThemes.includes('forge'), 'forge unlocked');
     assert(def.user.unlockedThemes.includes('venom'), 'venom free');
     assert(Array.isArray(def.goals), 'goals array');
-    assert(Array.isArray(def.weeks), 'weeks array');
+    assert(Array.isArray(def.milestones), 'milestones array');
+    assert(def.weeks === undefined, 'weeks removed from state');
+    assert(def.schemaVersion === Storage.SCHEMA_VERSION, 'schema stamped');
     log('✓ storage defaultState');
 
     // 2. todayStr uses local not UTC
@@ -138,19 +140,76 @@
     assert(fallback('academics').name === 'ACADEMICS', 'found pillar');
     log('✓ pillar fallback');
 
-    // 12. Goal deletion cleanup logic
+    // 12. Goal deletion cleanup logic (weeks are gone; milestones now cascade)
     let mockState = {
-      goals: [{id:'g1', pillarId:'academics'}],
-      weeks: [{id:'w1', goalId:'g1'}, {id:'w2', goalId:'g2'}],
-      tasks: [{id:'t1', goalId:'g1', weekId:'w1'}, {id:'t2', goalId:'g2', weekId:'w2'}]
+      goals: [{id:'g1', pillarId:'academics'}, {id:'g2', pillarId:'gamedev'}],
+      milestones: [{id:'m1', goalId:'g1'}, {id:'m2', goalId:'g2'}],
+      tasks: [
+        {id:'t1', goalId:'g1', milestoneId:'m1'},
+        {id:'t2', goalId:'g2', milestoneId:'m2'}
+      ]
     };
     const gid = 'g1';
-    mockState.weeks = mockState.weeks.filter(w=>w.goalId!==gid);
-    mockState.tasks.forEach(t=>{ if(t.goalId===gid){ t.goalId=null; t.weekId=null; }});
-    mockState.goals = mockState.goals.filter(g=>g.id!==gid);
-    assert(mockState.weeks.length===1 && mockState.weeks[0].id==='w2', 'weeks cleanup');
-    assert(mockState.tasks.find(t=>t.id==='t1').goalId===null, 'task goal null');
+    mockState.milestones = mockState.milestones.filter(m => m.goalId !== gid);
+    mockState.tasks.forEach(t => {
+      if (t.goalId === gid) { t.goalId = null; t.milestoneId = null; }
+    });
+    mockState.goals = mockState.goals.filter(g => g.id !== gid);
+    assert(mockState.milestones.length === 1 && mockState.milestones[0].id === 'm2', 'milestone cleanup');
+    assert(mockState.tasks.find(t => t.id === 't1').goalId === null, 'task goal null');
+    assert(mockState.tasks.find(t => t.id === 't1').milestoneId === null, 'task milestone null');
+    assert(mockState.tasks.find(t => t.id === 't2').goalId === 'g2', 'other goal untouched');
     log('✓ goal deletion cleanup');
+
+    // 13. v12 migration — legacy week/day model is fully removed
+    const legacy = {
+      goals: [{ id: 'g1', pillarId: 'academics', title: 'EDC', weekCount: 4 }],
+      weeks: [{ id: 'w1', goalId: 'g1', number: 1, label: 'WEEK 1' }],
+      tasks: [
+        { id: 't1', text: 'Revise', tag: 'academics', goalId: 'g1',
+          weekId: 'w1', day: 2, completed: false, xpMultiplier: 1 },
+        { id: 't2', text: 'Done thing', tag: 'other',
+          weekId: null, day: 5, completed: true, xpMultiplier: 1 }
+      ]
+    };
+    const migrated = Storage.migrate(JSON.parse(JSON.stringify(legacy)));
+
+    assert(migrated.weeks === undefined, 'migrate drops weeks[]');
+    assert(migrated.goals[0].weekCount === undefined, 'migrate drops goal.weekCount');
+    assert(migrated.goals[0].description === '', 'migrate adds goal.description');
+    assert(Array.isArray(migrated.milestones), 'migrate adds milestones[]');
+    assert(migrated.schemaVersion === Storage.SCHEMA_VERSION, 'migrate stamps version');
+
+    const mt = migrated.tasks[0];
+    assert(mt.weekId === undefined, 'migrate drops task.weekId');
+    assert(mt.day === undefined, 'migrate drops task.day');
+    assert(mt.scheduledStart === null, 'migrated task is UNSCHEDULED');
+    assert(mt.scheduledEnd === null, 'migrated task has no end');
+    assert(mt.estimatedMinutes === 60, 'migrate backfills estimatedMinutes');
+    assert(mt.priority === 'medium', 'migrate backfills priority');
+    assert(mt.milestoneId === null, 'migrate backfills milestoneId');
+    assert(mt.text === 'Revise' && mt.goalId === 'g1', 'migrate preserves real data');
+
+    // idempotent — running twice must not corrupt anything
+    const twice = Storage.migrate(migrated);
+    assert(twice.tasks[0].estimatedMinutes === 60, 'migrate is idempotent');
+    log('✓ v12 plan-mode migration');
+
+    // 14. Calendar date helpers are local-time, never UTC
+    const d = new Date(2026, 7, 17, 9, 30, 0); // Mon Aug 17 2026, 09:30 local
+    assert(Storage.dateStr(d) === '2026-08-17', 'dateStr local');
+    assert(Storage.localISO(d) === '2026-08-17T09:30:00', 'localISO local ' + Storage.localISO(d));
+
+    const round = Storage.parseLocal(Storage.localISO(d));
+    assert(round.getHours() === 9 && round.getMinutes() === 30, 'parseLocal round-trip');
+    assert(round.getDate() === 17, 'parseLocal keeps the day');
+
+    // Sunday must resolve back to the PRECEDING Monday, not the next one
+    const sun = new Date(2026, 7, 23, 12, 0, 0); // Sun Aug 23 2026
+    assert(Storage.dateStr(Storage.startOfWeek(sun)) === '2026-08-17', 'startOfWeek Sunday→Mon');
+    assert(Storage.dateStr(Storage.startOfWeek(d)) === '2026-08-17', 'startOfWeek Monday→self');
+    assert(Storage.dateStr(Storage.addDays(d, 4)) === '2026-08-21', 'addDays');
+    log('✓ calendar date helpers');
 
     log('All tests passed ✅ — FORGE is usable again');
     return true;

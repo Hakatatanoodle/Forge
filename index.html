@@ -73,7 +73,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v11.8</span>
+        <span class="rail-version">FORGE v12.0</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -182,7 +182,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v11.8</span>
+          <span id="drawer-version" class="drawer-version">FORGE v12.0</span>
         </div>
       </div>
 
@@ -852,140 +852,172 @@
     <!-- ════════════════════════════════════════
          VIEW: PLAN MODE
     ════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════
+         PLAN MODE
+         PILLARS → GOALS → TASKS → CALENDAR
+         Two surfaces only: OBJECTIVES (what/why) and CALENDAR (when).
+         ══════════════════════════════════════════ -->
     <div id="view-plan" class="view">
       <div class="plan-container">
 
         <div class="plan-header">
-          <div class="plan-header-top">
-            <div class="mode-switcher">
-              <button class="mode-btn" id="plan-mode-forge">FORGE</button>
-              <button class="mode-btn active" id="plan-mode-plan">PLAN</button>
+          <div class="plan-header-main">
+            <div>
+              <span class="plan-title">PLAN MODE</span>
+              <span class="plan-subtitle" id="plan-subtitle">OUTCOMES · ACTIONS · COMMITMENT</span>
             </div>
-          </div>
-          <span class="plan-title">PLAN MODE</span>
-          <span class="plan-subtitle">PILLARS · GOALS · THIS WEEK</span>
-
-          <!-- ── Plan tab bar ── -->
-          <div class="plan-tabbar" id="plan-tabbar">
-            <button class="plan-tab active" id="plan-tab-pillars">PILLARS</button>
-            <button class="plan-tab" id="plan-tab-goals">GOALS</button>
-            <button class="plan-tab" id="plan-tab-weeks">THIS WEEK</button>
-            <button class="plan-tab" id="plan-tab-tasks">TASKS</button>
-          </div>
-
-        </div>
-
-        <!-- ── PILLARS VIEW (default) ── -->
-        <div id="plan-view-pillars">
-          <div class="plan-section-label">PILLARS OF FOCUS</div>
-          <div class="plan-pillars-list" id="plan-pillars-list"></div>
-          <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
-          <div id="pillar-form" class="pillar-form hidden">
-            <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
-            <div class="pillar-color-row">
-              <span class="pillar-form-label">ICON</span>
-              <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
-            </div>
-            <div class="pillar-color-row">
-              <span class="pillar-form-label">COLOR</span>
-              <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
-            </div>
-            <div class="pillar-form-btns">
-              <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
-              <button id="btn-pillar-save" class="btn-primary">SAVE</button>
+            <div class="plan-tabbar" id="plan-tabbar">
+              <button class="plan-tab active" id="plan-tab-objectives">◎ OBJECTIVES</button>
+              <button class="plan-tab" id="plan-tab-calendar">▦ CALENDAR</button>
             </div>
           </div>
         </div>
 
-        <!-- ── GOALS VIEW ── -->
-        <div id="plan-view-goals" class="hidden">
-          <div class="plan-goals-header">
-            <button class="plan-back-btn" id="btn-goals-back">← PILLARS</button>
-            <div class="plan-goals-pillar-label" id="goals-pillar-label">
-              <span id="goals-pillar-icon"></span>
-              <span id="goals-pillar-name"></span>
+        <!-- ══ OBJECTIVES ══ -->
+        <div id="plan-view-objectives" class="plan-surface">
+          <div class="obj-toolbar">
+            <div class="obj-filters" id="obj-filters"></div>
+            <div class="obj-toolbar-right">
+              <label class="obj-toggle">
+                <input type="checkbox" id="obj-hide-completed" />
+                <span>HIDE COMPLETED</span>
+              </label>
+              <button class="btn-primary obj-new-btn" id="btn-new-goal">+ NEW GOAL</button>
             </div>
           </div>
-          <div class="plan-section-label">GOALS</div>
-          <div class="plan-goals-list" id="plan-goals-list"></div>
-          <button class="plan-add-pillar-btn" id="btn-add-goal">+ ADD GOAL</button>
-          <div id="goal-form" class="goal-form hidden">
-            <input type="text" id="goal-title-input" class="text-input" placeholder="GOAL TITLE" maxlength="60" />
-            <div class="goal-form-row">
-              <span class="pillar-form-label">DEADLINE</span>
-              <input type="date" id="goal-deadline-input" class="text-input date-input" />
-            </div>
-            <div class="goal-form-row">
-              <span class="pillar-form-label">DURATION</span>
-              <div class="week-count-row">
-                <button class="week-count-btn" data-delta="-1">−</button>
-                <span id="goal-week-count-display">4 weeks</span>
-                <button class="week-count-btn" data-delta="1">+</button>
+
+          <div class="obj-count" id="obj-count"></div>
+          <div class="obj-grid" id="obj-grid"></div>
+
+          <div class="obj-pillars-strip">
+            <div class="plan-section-label">PILLARS OF FOCUS</div>
+            <div class="plan-pillars-list" id="plan-pillars-list"></div>
+            <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
+            <div id="pillar-form" class="pillar-form hidden">
+              <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
+              <div class="pillar-color-row">
+                <span class="pillar-form-label">ICON</span>
+                <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
+              </div>
+              <div class="pillar-color-row">
+                <span class="pillar-form-label">COLOR</span>
+                <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
+              </div>
+              <div class="pillar-form-btns">
+                <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
+                <button id="btn-pillar-save" class="btn-primary">SAVE</button>
               </div>
             </div>
-            <div class="pillar-form-btns">
-              <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
-              <button id="btn-goal-save" class="btn-primary">SAVE</button>
-            </div>
           </div>
         </div>
 
-        <!-- ── THIS WEEK VIEW (weekboard kanban) ── -->
-        <div id="plan-view-weekboard" class="hidden">
-          <div class="plan-section-label">THIS WEEK · SCHEDULE</div>
-          <div class="weekboard-columns" id="weekboard-columns"></div>
-        </div>
-
-        <!-- ── TASKS VIEW (queue) ── -->
-        <div id="plan-view-tasks" class="hidden">
-          <div class="plan-section-label">TASK QUEUE</div>
-          <div id="plan-task-list" class="task-list"></div>
-        </div>
-
-        <!-- ── GOAL DETAIL VIEW (weeks + tasks) ── -->
-        <div id="plan-view-weeks" class="hidden">
-          <div class="plan-goals-header">
-            <button class="plan-back-btn" id="btn-weeks-back">← GOALS</button>
-            <div class="plan-goals-pillar-label" id="weeks-goal-label">
-              <span id="weeks-goal-title"></span>
-            </div>
-            <div class="goal-progress-pill" id="weeks-goal-progress"></div>
+        <!-- ══ GOAL DETAIL ══ -->
+        <div id="plan-view-goal" class="plan-surface hidden">
+          <div class="goal-detail-head">
+            <button class="plan-back-btn" id="btn-goal-back">← OBJECTIVES</button>
           </div>
-          <div id="weeks-content">
-            <!-- Rendered by JS -->
-          </div>
+          <div id="goal-detail-body"></div>
         </div>
 
+        <!-- ══ CALENDAR ══ -->
+        <div id="plan-view-calendar" class="plan-surface hidden">
+          <div class="cal-toolbar">
+            <div class="cal-nav">
+              <button class="cal-nav-btn" id="cal-prev" title="Previous">‹</button>
+              <span class="cal-range" id="cal-range">—</span>
+              <button class="cal-nav-btn" id="cal-next" title="Next">›</button>
+              <button class="cal-today-btn" id="cal-today">TODAY</button>
+            </div>
+            <div class="cal-views" id="cal-views">
+              <button class="cal-view-btn" data-view="day">DAY</button>
+              <button class="cal-view-btn active" data-view="week">WEEK</button>
+              <button class="cal-view-btn" data-view="month">MONTH</button>
+              <button class="cal-view-btn" data-view="agenda">AGENDA</button>
+            </div>
+          </div>
 
+          <div class="cal-body">
+            <div class="cal-main" id="cal-main"></div>
 
-        <!-- Add/Edit Week form -->
-        <div id="week-form" class="week-form hidden">
-          <div class="week-form-inner">
-            <input type="text" id="week-name-input" class="text-input" placeholder="PERIOD NAME (e.g. C EXAM PREP)" maxlength="40" />
-            <div class="goal-form-row">
-              <span class="pillar-form-label">FROM</span>
-              <input type="date" id="week-from-input" class="text-input date-input" />
-            </div>
-            <div class="goal-form-row">
-              <span class="pillar-form-label">TO</span>
-              <input type="date" id="week-to-input" class="text-input date-input" />
-            </div>
-            <div class="pillar-form-btns">
-              <button id="btn-week-cancel" class="btn-ghost">CANCEL</button>
-              <button id="btn-week-save" class="btn-primary">SAVE</button>
-            </div>
+            <!-- Unscheduled inventory — the drag source, NOT a second calendar -->
+            <aside class="cal-side" id="cal-side">
+              <div class="cal-side-head">
+                <span class="cal-side-title">UNSCHEDULED</span>
+                <span class="cal-side-sub" id="cal-side-sub"></span>
+              </div>
+              <div class="cal-unscheduled" id="cal-unscheduled"></div>
+              <div class="cal-overdue-block" id="cal-overdue-block"></div>
+            </aside>
           </div>
         </div>
 
-        <!-- Move task modal (mobile) -->
-        <div id="move-task-modal" class="move-task-modal hidden">
-          <div class="move-task-backdrop" id="move-task-backdrop"></div>
-          <div class="move-task-sheet">
-            <div class="move-task-title">MOVE TASK TO</div>
-            <div id="move-task-options" class="move-task-options"></div>
+      </div>
+    </div>
+
+    <!-- ══ TASK DETAIL INSPECTOR ══ -->
+    <div id="task-detail" class="task-detail hidden">
+      <div class="task-detail-backdrop" id="task-detail-backdrop"></div>
+      <div class="task-detail-panel">
+        <div class="task-detail-head">
+          <span class="task-detail-title">TASK DETAIL</span>
+          <button class="task-detail-close" id="task-detail-close">✕</button>
+        </div>
+        <div class="task-detail-body" id="task-detail-body"></div>
+      </div>
+    </div>
+
+    <!-- ══ GOAL FORM MODAL ══ -->
+    <div id="goal-modal" class="forge-modal hidden">
+      <div class="forge-modal-backdrop" id="goal-modal-backdrop"></div>
+      <div class="forge-modal-panel">
+        <div class="forge-modal-head">
+          <span class="forge-modal-title" id="goal-modal-title">NEW GOAL</span>
+          <button class="forge-modal-close" id="goal-modal-close">✕</button>
+        </div>
+        <div class="forge-modal-body">
+          <label class="fld-label">TITLE</label>
+          <input type="text" id="goal-title-input" class="text-input" placeholder="e.g. EDC — Exam Preparation" maxlength="60" />
+
+          <label class="fld-label">OUTCOME <span class="fld-optional">what does done look like?</span></label>
+          <input type="text" id="goal-desc-input" class="text-input" placeholder="e.g. Pass EDC internal examination" maxlength="90" />
+
+          <div class="fld-row">
+            <div class="fld-col">
+              <label class="fld-label">PILLAR</label>
+              <select id="goal-pillar-select" class="text-input"></select>
+            </div>
+            <div class="fld-col">
+              <label class="fld-label">DEADLINE</label>
+              <input type="date" id="goal-deadline-input" class="text-input date-input" />
+            </div>
           </div>
         </div>
+        <div class="forge-modal-foot">
+          <button id="btn-goal-delete" class="btn-ghost btn-danger">DELETE</button>
+          <div class="forge-modal-foot-right">
+            <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
+            <button id="btn-goal-save" class="btn-primary">SAVE</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
+    <!-- ══ SCHEDULE (PLAN TASK) MODAL ══ -->
+    <div id="schedule-modal" class="forge-modal hidden">
+      <div class="forge-modal-backdrop" id="schedule-modal-backdrop"></div>
+      <div class="forge-modal-panel">
+        <div class="forge-modal-head">
+          <span class="forge-modal-title">PLAN TASK</span>
+          <button class="forge-modal-close" id="schedule-modal-close">✕</button>
+        </div>
+        <div class="forge-modal-body" id="schedule-modal-body"></div>
+        <div class="forge-modal-foot">
+          <button id="btn-schedule-clear" class="btn-ghost">UNSCHEDULE</button>
+          <div class="forge-modal-foot-right">
+            <button id="btn-schedule-cancel" class="btn-ghost">CANCEL</button>
+            <button id="btn-schedule-save" class="btn-primary">SCHEDULE</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -994,7 +1026,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v11.8</div>
+  <div class="version-stamp">FORGE v12.0</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
@@ -1016,6 +1048,8 @@
   <script src="timer.js"></script>
   <script src="sound.js"></script>
   <script src="firebase.js"></script>
+  <script src="calendar.js"></script>
+  <script src="plan.js"></script>
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

@@ -8,7 +8,7 @@ FORGE is a **desktop-first** web app built with **zero dependencies** — vanill
 
 ## The core loop
 
-1. **PLAN** — define pillars (Academics, Gamedev, Other…) → goals with deadlines → weekly tasks.
+1. **PLAN** — define pillars (Academics, Gamedev, Other…) → goals with deadlines → tasks → commit them to real times on the **calendar**.
 2. **FORGE** — the dashboard shows your NEXT OBJECTIVE, one hero quest, and today's quest list.
 3. **LOCK IN** — write a declaration — *"I will finish Chapter 3 notes"* — pick 25/50/90/custom minutes, hit **⚔ LOCK IN**.
 4. **FOCUS** — a distraction-free countdown ring (wall-clock based, immune to tab throttling). Hold, resume, or abandon.
@@ -26,7 +26,8 @@ Repeat. Level up, rank up, keep the streak alive, earn coins, buy themes and str
 - **Ritual start-flow** — locked `I will {task}` declaration line, one-tap duration with 50m default.
 - **XP economy** — `500 × level^1.6` per level; session XP scales with minutes, deep-work mode, difficulty, streak, and level bonus, plus a random focus bonus. 8 canonical ranks: **INITIATE → APPRENTICE → OPERATOR → SPECIALIST → VETERAN → ELITE → COMMANDER → LEGEND** (50).
 - **Streak system** — streak multiplier with freezes (buyable in the Armory).
-- **Plan mode** — tabbed planner: pillar cards with progress %, goal drill-down into weekly kanban, THIS WEEK Mon–Sun board with drag-and-drop per-day scheduling + UNASSIGNED column, and a task queue tab.
+- **Plan mode** — two surfaces, not four tabs. **OBJECTIVES**: goal cards with pillar filter, live progress %, and deadline countdowns; drill into a goal for its tasks, milestones and stats. **CALENDAR**: a real time × date grid (Day / Week / Month / Agenda) with drag-to-schedule, drag-to-move, resize-to-change-duration, a current-time line, deadline markers, an UNSCHEDULED side rail and an OVERDUE tray.
+- **The planning model** — `PILLARS → GOALS → TASKS → CALENDAR`. Pillars are *where*, goals are *why*, tasks are *what*, the calendar is *when*. There are no "Week 1..N" objects: a week is a time window, not a planning object. Meaningful checkpoints are **milestones**, never "Week 3".
 - **Combat Log** — 16-week heatmap (112 cells), stats strip (hours/sessions/total XP/best day), per-day session log.
 - **Weekly Debrief** — auto-summary on your chosen day if last week had sessions: hero XP, best day, a motivational line.
 - **Armory (shop)** — themes priced 0–500 coins + Streak Freeze (150, max 2).
@@ -42,7 +43,9 @@ Repeat. Level up, rank up, keep the streak alive, earn coins, buy themes and str
 | File | Role |
 |---|---|
 | `index.html` | All 12 views (onboarding, dashboard, intention, session, break, reward, plan, tasks, history, settings, summary, shop) — `.view.active` toggling, no router |
-| `app.js` | The engine: state, view routing, rendering, events, plan mode, shop, summary, history |
+| `app.js` | The engine: state, view routing, dashboard, session/reward loop, shop, summary, history |
+| `plan.js` | Plan Mode — Objectives grid, goal detail, milestones, goal modal |
+| `calendar.js` | The commitment layer — time × date grid, drag/resize scheduling, task inspector |
 | `style.css` | Design system — CSS variables + `[data-theme="x"]` overrides, industrial-terminal aesthetic |
 | `storage.js` | `localStorage` wrapper — `defaultState()` is the single source of truth for the state shape, `deepMerge` handles migrations |
 | `xp.js` | Pure XP/rank/streak math (level curve, session XP, task bonuses) |
@@ -75,11 +78,16 @@ python3 -m http.server 8000
 ## Tests
 
 ```bash
-node tests.js
+node tests.js        # 15 unit assertions — zero dependencies
+node tests.plan.js   # 22-step Plan Mode integration run (needs: npm i jsdom)
 # or open /test.html in the browser
 ```
 
-13 assertions: storage default, date format, canonical ranks, XP curve, session XP, task XP, level-up, streak continue/reset, timer format/ring, pillar fallback, goal deletion cleanup.
+`tests.js` — storage default, date format, canonical ranks, XP curve, session XP, task XP, level-up, streak continue/reset, timer format/ring, pillar fallback, goal+milestone deletion cleanup, the v12 migration, and the local-time calendar date helpers.
+
+`tests.plan.js` — drives the real DOM: objectives render, goal drill-down, milestones, all four calendar views, scheduling via drag/API/modal, unschedule, the task inspector, goal creation (asserting **no week objects are generated**), and that the dashboard and task queue still work.
+
+> `jsdom` is a **dev-only** dependency for the integration run. The app itself still ships with zero dependencies and no build step.
 
 ---
 
@@ -97,7 +105,8 @@ The design specs that drove the current build (all in-repo):
 
 ## Architecture notes
 
-- **State shape** lives in `storage.js` → `defaultState()` (user, tasks, sessions, today, settings, pillars, goals, weeks). `deepMerge` migrates old shapes forward safely.
+- **State shape** lives in `storage.js` → `defaultState()` (user, tasks, sessions, today, settings, pillars, goals, milestones). `deepMerge` fills in new default keys; `migrate()` handles shape changes that `deepMerge` cannot, because it replaces arrays wholesale rather than merging their elements. `schemaVersion` gates each migration.
+- **One scheduling field, not two.** A task's `scheduledStart` / `scheduledEnd` are the single source of truth for *when*; `scheduledStart === null` **is** the unscheduled state. The old model had `task.weekId` *and* `task.day` disagreeing with each other, and `day` was a bare weekday integer with no date — so overdue work was undetectable.
 - **The god file is real** — `app.js` is ~100 KB and holds most of the app. Deliberately kept single-file for now; modularizing is a known future task.
 - **Timer integrity** — sessions anchor to `Date.now`, so closing the tab mid-session restores the countdown; the ring is SVG.
 - **Reliability is a feature** — Firebase failing must never brick the app (offline path + 3s auth fallback), because Forge should never become the day's distraction.
@@ -107,9 +116,10 @@ The design specs that drove the current build (all in-repo):
 ## Known limitations / roadmap
 
 - `app.js` needs splitting into modules at some point.
-- Week from/to dates are manual — not auto-calculated from goal deadlines yet.
 - No data export button yet (back up `localStorage.forge_state` via DevTools → Application → Local Storage).
 - Coins currently buy only themes/freezes — *user-defined rewards* ("500 coins = guilt-free movie night") is the planned next step for the economy.
+- **Calendar capacity** is currently a total-scheduled readout. Per-day "6h available / 5h scheduled" bars and the OVERCOMMITTED warning are designed for but not yet wired.
+- **External events** (classes, lunch, basketball) are not imported yet. The calendar is architected so they can coexist with FORGE tasks later — external events occupy time, FORGE tasks consume planning capacity.
 - **Vault (not built):** boss fights (goal-as-boss HP bar), ranked multiplayer lobby / leaderboards, real-money staking (risk-flagged), AI task generation.
 
 ---
