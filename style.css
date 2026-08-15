@@ -688,6 +688,20 @@ body.no-rail #rail { display: none !important; }
   border-radius: 3px;
   flex-shrink: 0;
 }
+.quest-rename-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--yellow);
+  border: 1px solid var(--yellow);
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.quest-item.needs-rename {
+  border-color: color-mix(in srgb, var(--yellow) 30%, var(--border));
+}
 .quest-stars {
   font-family: var(--font-mono);
   font-size: 12px;

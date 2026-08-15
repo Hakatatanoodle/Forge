@@ -132,8 +132,22 @@ const Storage = (() => {
         }
       });
 
-      if (!Array.isArray(state.milestones)) state.milestones = [];
-    }
+      if (!Array.isArray(state.milestones)) state.milestones = [];\n    }
+
+    // ── v12.1 data-hygiene: fix tasks whose text was accidentally set to
+    //    their goal's title (a bug in an earlier addGoalTask implementation).
+    //    Mark them so the UI can warn the user to rename them.
+    const goalTitleSet = new Set((state.goals || []).map(g => g.title?.trim().toLowerCase()));
+    (state.tasks || []).forEach(t => {
+      const txt = (t.text || '').trim();
+      // Blank text or text that exactly matches a goal title → needs rename
+      if (!txt || (t.goalId && goalTitleSet.has(txt.toLowerCase()))) {
+        t._needsRename = true;
+        if (!txt) t.text = 'Unnamed task';
+      } else {
+        delete t._needsRename;
+      }
+    });
 
     state.schemaVersion = SCHEMA_VERSION;
     return state;
