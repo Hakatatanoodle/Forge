@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════
-// sw.js — Service Worker v11.7 (fixed)
+// sw.js — Service Worker v12.0
 // Robust install, no external font fails, relative paths
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'forge-v11-8';
+const CACHE_NAME = 'forge-v12-0';
 
 const FILES_TO_CACHE = [
   './',
@@ -15,6 +15,8 @@ const FILES_TO_CACHE = [
   './xp.js',
   './storage.js',
   './firebase.js',
+  './calendar.js',
+  './plan.js',
   './manifest.json'
 ];
 
