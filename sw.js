@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════
-// sw.js — Service Worker v12.0
-// Robust install, no external font fails, relative paths
+// sw.js — Service Worker v12.1
+// Network-first for all app files — changes show immediately.
+// Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'forge-v12-0';
+const CACHE_VERSION = 'forge-v12-1';
+const CACHE_NAME    = CACHE_VERSION;
 
-const FILES_TO_CACHE = [
+const APP_FILES = [
   './',
   './index.html',
   './style.css',
@@ -20,77 +22,88 @@ const FILES_TO_CACHE = [
   './manifest.json'
 ];
 
-// Install: cache everything, but don't fail if one file fails
+// ── Install: pre-cache everything ──────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async cache => {
-      for (const file of FILES_TO_CACHE) {
-        try {
-          await cache.add(file);
-        } catch (e) {
-          console.warn('FORGE SW: failed to cache', file, e.message);
-        }
+      for (const file of APP_FILES) {
+        try { await cache.add(file); }
+        catch (e) { console.warn('FORGE SW: failed to cache', file, e.message); }
       }
     })
   );
+  // Take over immediately — don't wait for old SW to idle
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
+// ── Activate: nuke every old cache version ─────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => {
+        console.log('FORGE SW: deleting old cache', k);
+        return caches.delete(k);
+      }))
     )
   );
   self.clients.claim();
 });
 
-// Fetch: HTML network-first, everything else cache-first with network fallback
+// ── Fetch strategy ──────────────────────────────────────
+// External (Firebase, Google APIs) → always bypass SW
+// App files (JS, CSS, HTML)        → network-first, cache fallback
+// Everything else                  → cache-first, background update
+
 self.addEventListener('fetch', event => {
   const req = event.request;
-  // Skip Firebase / external APIs — never cache
-  if (req.url.includes('firestore.googleapis.com') ||
-      req.url.includes('firebase') ||
-      req.url.includes('googleapis') ||
-      req.url.includes('gstatic')) {
-    return; // let browser handle
-  }
+  const url = req.url;
 
-  // HTML — network first
-  if (req.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(
-      fetch(req)
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
+  // 1. Always bypass for external services
+  if (url.includes('firestore.googleapis.com') ||
+      url.includes('firebase')                 ||
+      url.includes('googleapis')               ||
+      url.includes('gstatic')) {
     return;
   }
 
-  // Others — cache first, then network
-  event.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) {
-        // update in background
-        fetch(req).then(res => {
-          if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
-          }
-        }).catch(()=>{});
-        return cached;
-      }
-      return fetch(req).then(res => {
-        if (res && res.status === 200) {
-          caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
-        }
-        return res;
-      }).catch(() => cached);
-    })
-  );
+  // 2. Network-first for all app files (HTML, JS, CSS, JSON)
+  const isAppFile = APP_FILES.some(f => url.endsWith(f.replace('./', '/')))
+    || url.endsWith('/')
+    || /\.(html|js|css|json)$/.test(url);
+
+  if (isAppFile) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // 3. Cache-first with background update for everything else (icons, etc.)
+  event.respondWith(cacheFirstWithUpdate(req));
 });
+
+// Network-first: try network, update cache, fall back to cache if offline
+async function networkFirst(req) {
+  try {
+    const res = await fetch(req);
+    if (res && res.status === 200) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(req, res.clone());
+    }
+    return res;
+  } catch (_) {
+    const cached = await caches.match(req);
+    return cached || new Response('Offline', { status: 503 });
+  }
+}
+
+// Cache-first: serve from cache, silently refresh in background
+async function cacheFirstWithUpdate(req) {
+  const cached = await caches.match(req);
+  const fetchPromise = fetch(req).then(res => {
+    if (res && res.status === 200) {
+      caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+    }
+    return res;
+  }).catch(() => {});
+
+  return cached || fetchPromise;
+}
