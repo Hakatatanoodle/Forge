@@ -658,15 +658,20 @@ const Calendar = (() => {
         ms.map(m => `<option value="${m.id}">${ctx.escHtml(m.title)}</option>`).join('');
     });
 
-    $('td-save').addEventListener('click', saveTaskDetail);
-    $('td-delete').addEventListener('click', () => {
-      ctx.forgeConfirm('Delete this task?', () => {
+        $('td-delete').addEventListener('click', () => {
+      // Capture the id and close the inspector BEFORE confirming: stacking a
+      // dialog on top of the panel reads as "nothing happened", and the panel
+      // must not linger behind the confirm.
+      const id = detailTaskId;
+      const label = t.text;
+      closeTaskDetail();
+      ctx.forgeConfirm(`Delete "${label}"?`, () => {
         const st = ctx.getState();
-        st.tasks = st.tasks.filter(x => x.id !== detailTaskId);
+        st.tasks = st.tasks.filter(x => x.id !== id);
         ctx.save();
-        closeTaskDetail();
         render();
         ctx.onTasksChanged();
+        ctx.showToast('TASK DELETED', 'success');
       });
     });
   }
