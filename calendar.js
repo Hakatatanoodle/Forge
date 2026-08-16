@@ -687,7 +687,6 @@ const Calendar = (() => {
     if (!text) { ctx.showToast('TASK NEEDS A NAME', 'error'); return; }
 
     t.text             = text;
-    delete t._needsRename;
     t.goalId           = $('td-goal').value || null;
     t.milestoneId      = $('td-milestone').value || null;
     t.estimatedMinutes = Math.max(5, parseInt($('td-mins').value, 10) || 60);

@@ -96,7 +96,7 @@
     if (result.ok && result.state) {
       // Returning user — load their cloud data
       const base = Storage.defaultState();
-      state = Storage.deepMerge(base, result.state);
+      state = Storage.migrate(Storage.deepMerge(base, result.state));
       // Clean up legacy sprints data (removed in v11)
       if (state.sprints) delete state.sprints;
       checkDayReset();
@@ -577,12 +577,10 @@
       const starCount = { 1: 1, 1.5: 2, 2: 3 }[t.xpMultiplier || 1] || 1;
       const stars     = '★'.repeat(starCount);
       const goal      = t.goalId ? (getGoalById(t.goalId)?.title || '') : '';
-      const needsRename = t._needsRename ? `<span class="quest-rename-badge" title="Task name needs updating — click to rename">⚠ RENAME</span>` : '';
       return `
-        <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''} ${t._needsRename ? 'needs-rename' : ''}" data-task-id="${t.id}">
+        <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''}" data-task-id="${t.id}">
           <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
           <span class="quest-text">${escHtml(t.text)}</span>
-          ${needsRename}
           ${goal ? `<span class="quest-goal">▸ ${escHtml(goal)}</span>` : ''}
           <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
           <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>

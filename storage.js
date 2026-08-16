@@ -135,18 +135,22 @@ const Storage = (() => {
       if (!Array.isArray(state.milestones)) state.milestones = [];
     }
 
-    // ── v12.1 data-hygiene: fix tasks whose text was accidentally set to
-    //    their goal's title (a bug in an earlier addGoalTask implementation).
-    //    Mark them so the UI can warn the user to rename them.
-    const goalTitleSet = new Set((state.goals || []).map(g => g.title?.trim().toLowerCase()));
+    // ── Data hygiene: fix tasks whose text was accidentally set to their
+    //    goal's title (bug in an earlier addGoalTask). Rename them clearly
+    //    so the user knows to update them, rather than silently showing
+    //    the wrong name.
+    const goalTitleMap = {};
+    (state.goals || []).forEach(g => {
+      if (g.title) goalTitleMap[g.title.trim().toLowerCase()] = g.title;
+    });
     (state.tasks || []).forEach(t => {
       const txt = (t.text || '').trim();
-      // Blank text or text that exactly matches a goal title → needs rename
-      if (!txt || (t.goalId && goalTitleSet.has(txt.toLowerCase()))) {
-        t._needsRename = true;
-        if (!txt) t.text = 'Unnamed task';
-      } else {
-        delete t._needsRename;
+      if (!txt) {
+        // Completely blank — give it a placeholder
+        t.text = 'Unnamed task (tap to rename)';
+      } else if (t.goalId && goalTitleMap[txt.toLowerCase()]) {
+        // Text exactly matches goal title — it was never actually named
+        t.text = 'New task (tap to rename)';
       }
     });
 
