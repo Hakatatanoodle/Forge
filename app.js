@@ -580,10 +580,20 @@
       return `
         <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''}" data-task-id="${t.id}">
           <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
-          <span class="quest-text">${escHtml(t.text)}</span>
-          ${goal ? `<span class="quest-goal">▸ ${escHtml(goal)}</span>` : ''}
-          <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
-          <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>
+          <div class="quest-main">
+            <div class="quest-row-top">
+              <span class="quest-text">${escHtml(t.text)}</span>
+              <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>
+            </div>
+            ${goal ? `
+            <div class="quest-row-bottom">
+              <span class="quest-goal">▸ ${escHtml(goal)}</span>
+              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+            </div>` : `
+            <div class="quest-row-bottom quest-row-bottom-nogoal">
+              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+            </div>`}
+          </div>
         </button>`;
     }).join('');
 
