@@ -10,7 +10,7 @@ const Storage = (() => {
   // Schema version. Bump when the state shape changes in a way that needs
   // an explicit migration (deepMerge alone cannot fix arrays — it replaces
   // them wholesale, so saved tasks never gain new default fields).
-  const SCHEMA_VERSION = 12;
+  const SCHEMA_VERSION = 13;
 
   // ── DEFAULT STATE ──
   const defaultState = () => ({
@@ -103,7 +103,7 @@ const Storage = (() => {
 
     const from = state.schemaVersion || 0;
 
-    if (from < 12) {
+    if (from < 13) {
       // Artificial week containers carry no schedulable information —
       // their fromDate/toDate were almost always blank. Drop them.
       delete state.weeks;
@@ -141,15 +141,14 @@ const Storage = (() => {
     //    the wrong name.
     const goalTitleMap = {};
     (state.goals || []).forEach(g => {
-      if (g.title) goalTitleMap[g.title.trim().toLowerCase()] = g.title;
+      if (g.title) goalTitleMap[g.title.trim().toLowerCase()] = true;
     });
     (state.tasks || []).forEach(t => {
       const txt = (t.text || '').trim();
       if (!txt) {
-        // Completely blank — give it a placeholder
         t.text = 'Unnamed task (tap to rename)';
-      } else if (t.goalId && goalTitleMap[txt.toLowerCase()]) {
-        // Text exactly matches goal title — it was never actually named
+      } else if (goalTitleMap[txt.toLowerCase()]) {
+        // Text exactly matches any goal title — was never properly named
         t.text = 'New task (tap to rename)';
       }
     });
