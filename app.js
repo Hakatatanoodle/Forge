@@ -223,6 +223,16 @@
       }
     }
 
+    // ── SELF-HEALING STREAK RECOMPUTE ──
+    // Rebuild current/longest from the real session log rather than trust
+    // the incrementally-updated counter, which can silently drift (old
+    // bugs, timezone edge cases, manual edits). Freeze BALANCE is left
+    // untouched — only the derived streak numbers are corrected.
+    const healed = XP.recalcStreak(state.sessions, state.user.streak.freezesAvailable || 0);
+    state.user.streak.current        = healed.current;
+    state.user.streak.longest        = healed.longest;
+    state.user.streak.lastActiveDate = healed.lastActiveDate || state.user.streak.lastActiveDate;
+
     if (state.today.date !== today) {
       state.today = { date: today, sessionsCompleted: 0 };
       // Don't save here — caller handles saving after all init is done
@@ -1732,7 +1742,7 @@
     // ── Render consumables ──
     const list   = $('shop-consumables-list');
     const freezes = state.user.streak.freezesAvailable || 0;
-    const maxFreeze = 2;
+    const maxFreeze = 3;
     const freezePrice = 150;
     const canAffordFreeze = coins >= freezePrice;
     const atMax = freezes >= maxFreeze;
@@ -1743,7 +1753,7 @@
         <div class="consumable-icon">🧊</div>
         <div class="consumable-info">
           <div class="consumable-name">STREAK FREEZE</div>
-          <div class="consumable-desc">Protects your streak if you miss a day. Max 2.</div>
+          <div class="consumable-desc">Protects your streak if you miss a day. Max 3.</div>
         </div>
         <div class="consumable-right">
           <div class="consumable-price">◎ ${freezePrice}</div>

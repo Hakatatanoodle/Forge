@@ -187,7 +187,46 @@ const XP = (() => {
     };
   }
 
-  // ── CHECK STREAK AT RISK ──
+  // ── SELF-HEALING STREAK RECOMPUTE ──
+  // The incremental updateStreak() above can drift from the truth over time —
+  // timezone edge cases around midnight, old bugs, manual data edits. Rather
+  // than trust a running counter forever, rebuild current/longest by replaying
+  // the actual session history through the SAME logic used live. This makes
+  // the number always match what really happened, permanently.
+  //
+  // Only current/longest/lastActiveDate are corrected — the user's real
+  // freezesAvailable balance (earned + purchased) is left untouched, since
+  // it's a resource, not a derived value. The replay starts fresh at 0
+  // freezes purely to decide which historical gaps *would* have been
+  // bridged, matching the live app's own behavior.
+  function recalcStreak(sessions, realFreezesAvailable) {
+    const dates = [...new Set(
+      (sessions || [])
+        .filter(s => s && s.startTime)
+        .map(s => {
+          const d = new Date(s.startTime);
+          const yyyy = d.getFullYear();
+          const mm   = String(d.getMonth() + 1).padStart(2, '0');
+          const dd   = String(d.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        })
+    )].sort();
+
+    let streak = { current: 0, longest: 0, lastActiveDate: null, freezesAvailable: 0, lastFreezeUsed: null };
+    for (const ds of dates) {
+      streak = updateStreak(streak, ds);
+    }
+
+    return {
+      current:         streak.current,
+      longest:         streak.longest,
+      lastActiveDate:  streak.lastActiveDate,
+      freezesAvailable: realFreezesAvailable, // preserve the real resource
+      lastFreezeUsed:  streak.lastFreezeUsed
+    };
+  }
+
+
   // Returns true if it's after 20:00 and no session today
   function isStreakAtRisk(streak) {
     if (!streak.lastActiveDate || streak.current === 0) return false;
@@ -227,6 +266,7 @@ const XP = (() => {
     getRank,
     xpProgress,
     updateStreak,
+    recalcStreak,
     isStreakAtRisk,
     randomBreakTip,
     RANKS
