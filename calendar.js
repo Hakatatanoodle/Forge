@@ -51,8 +51,12 @@ const Calendar = (() => {
     return t.estimatedMinutes || 60;
   }
 
+  // Completed tasks are hidden from every calendar view (day/week/month/
+  // agenda) — a finished task no longer needs a time slot. It still lives
+  // in the task's own history via state.sessions / state.tasks, just not
+  // rendered on the grid.
   function scheduledTasks() {
-    return (ctx.getState().tasks || []).filter(t => t.scheduledStart);
+    return (ctx.getState().tasks || []).filter(t => t.scheduledStart && !t.completed);
   }
 
   function tasksOnDay(date) {
@@ -88,8 +92,15 @@ const Calendar = (() => {
   // ══════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════
-  function render() {
+  function render(opts) {
     if (!ctx) return;
+    const preserveScroll = !!(opts && opts.preserveScroll);
+    let savedScrollTop = null;
+    if (preserveScroll) {
+      const prevScroll = $('cal-scroll');
+      if (prevScroll) savedScrollTop = prevScroll.scrollTop;
+    }
+
     renderToolbar();
     const main = $('cal-main');
     if (!main) return;
@@ -101,7 +112,15 @@ const Calendar = (() => {
     if (view === 'week' || view === 'day') {
       bindGrid();
       positionNowLine();
-      scrollToRelevant();
+      // In-place edits (drag/resize/delete/add) keep the user's current
+      // scroll position. Only real navigation (date change, view switch,
+      // "Today") jumps to the current-time-relevant position.
+      if (preserveScroll && savedScrollTop !== null) {
+        const scroll = $('cal-scroll');
+        if (scroll) scroll.scrollTop = savedScrollTop;
+      } else {
+        scrollToRelevant();
+      }
     } else {
       bindStatic();
     }
@@ -396,7 +415,7 @@ const Calendar = (() => {
     t.estimatedMinutes = dur;
 
     ctx.save();
-    render();
+    render({ preserveScroll: true });
     ctx.onTasksChanged();
   }
 
@@ -406,7 +425,7 @@ const Calendar = (() => {
     t.scheduledStart = null;
     t.scheduledEnd   = null;
     ctx.save();
-    render();
+    render({ preserveScroll: true });
     ctx.onTasksChanged();
   }
 
@@ -671,7 +690,7 @@ const Calendar = (() => {
         const st = ctx.getState();
         st.tasks = st.tasks.filter(x => x.id !== id);
         ctx.save();
-        render();
+        render({ preserveScroll: true });
         ctx.onTasksChanged();
         ctx.showToast('TASK DELETED', 'success');
       });
@@ -715,7 +734,7 @@ const Calendar = (() => {
     ctx.save();
     ctx.sound.click();
     closeTaskDetail();
-    render();
+    render({ preserveScroll: true });
     ctx.onTasksChanged();
   }
 
@@ -813,7 +832,7 @@ const Calendar = (() => {
     });
     s.tasks.push(t);
     ctx.save();
-    render();
+    render({ preserveScroll: true });
     ctx.onTasksChanged();
     openTaskDetail(t.id);
     setTimeout(() => { const el = $('td-text'); if (el) el.select(); }, 80);
@@ -865,7 +884,7 @@ const Calendar = (() => {
       ctx.save();
       q.value = '';
       ctx.sound.taskAdded ? ctx.sound.taskAdded() : ctx.sound.click();
-      render();
+      render({ preserveScroll: true });
       ctx.onTasksChanged();
       const again = $('cal-quick-input');
       if (again) again.focus();
