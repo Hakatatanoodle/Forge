@@ -98,10 +98,20 @@ const Storage = (() => {
   //   • every task starts UNSCHEDULED — the user deliberately commits each
   //     one to real time on the calendar
   //   • adds milestones[] and the new task fields
-  function migrate(state) {
+  // fromVersion: pass the RAW schemaVersion of the data being migrated,
+  // captured BEFORE it's merged with defaultState(). If omitted, falls
+  // back to reading state.schemaVersion directly — but callers that
+  // deepMerge(defaultState(), saved) first MUST pass it explicitly.
+  // Reason: deepMerge only overwrites keys present in `saved`, so if
+  // `saved` is missing schemaVersion entirely (any doc predating that
+  // field), the merged object silently inherits defaultState()'s
+  // CURRENT version — which fools this function into thinking already-
+  // stale data is already up to date, and every migration step below
+  // gets skipped. This was found via Phase 0 characterization testing.
+  function migrate(state, fromVersion) {
     if (!state || typeof state !== 'object') return state;
 
-    const from = state.schemaVersion || 0;
+    const from = (typeof fromVersion === 'number') ? fromVersion : (state.schemaVersion || 0);
 
     if (from < 13) {
       // Artificial week containers carry no schedulable information —
@@ -163,9 +173,12 @@ const Storage = (() => {
       const raw = localStorage.getItem(KEY);
       if (!raw) return defaultState();
       const saved = JSON.parse(raw);
-      // Deep merge: ensure new default keys exist if state is old
+      // Capture the RAW version BEFORE merging — deepMerge would otherwise
+      // silently backfill a missing schemaVersion from defaultState()'s
+      // current one, making migrate() think stale data is already current.
+      const rawFrom = saved.schemaVersion || 0;
       const base = defaultState();
-      return migrate(deepMerge(base, saved));
+      return migrate(deepMerge(base, saved), rawFrom);
     } catch (e) {
       console.warn('FORGE: State load failed, using default.', e);
       return defaultState();

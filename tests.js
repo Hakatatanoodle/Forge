@@ -122,6 +122,33 @@
     assert(updated.current === 1, 'streak reset after gap');
     log('✓ streak reset');
 
+    // 8b. Streak self-heal (recalcStreak) — regression test for the real
+    // drift bug found in production: a session log with a genuine gap
+    // (one skipped day, no freeze available yet) must recompute to the
+    // SAME answer the live incremental logic would produce, every time,
+    // regardless of what the persisted streak.current says.
+    if (XP.recalcStreak) {
+      const mkSession = (dateStr) => ({ startTime: dateStr + 'T09:00:00' });
+      // Tue session, Wed gap (no freeze earned yet), Thu-Sun sessions
+      const sessions = [
+        mkSession('2026-08-11'), // Tue
+        mkSession('2026-08-13'), // Thu (Wed skipped)
+        mkSession('2026-08-14'), // Fri
+        mkSession('2026-08-15'), // Sat
+        mkSession('2026-08-16')  // Sun
+      ];
+      const healed = XP.recalcStreak(sessions, 3);
+      assert(healed.current === 4, 'recalcStreak matches live logic for a real gap (got ' + healed.current + ', expected 4)');
+      assert(healed.freezesAvailable === 3, 'recalcStreak preserves the real freeze balance untouched');
+      log('✓ streak self-heal recompute', healed.current);
+
+      // Same dates, but multiple sessions on one day must not double-count
+      const dup = [mkSession('2026-08-20'), mkSession('2026-08-20'), mkSession('2026-08-21')];
+      const healedDup = XP.recalcStreak(dup, 0);
+      assert(healedDup.current === 2, 'recalcStreak ignores duplicate same-day sessions (got ' + healedDup.current + ')');
+      log('✓ streak self-heal ignores same-day duplicates');
+    }
+
     // 9. Timer format
     const fmt = Timer.format(125);
     assert(fmt.mm === '02' && fmt.ss === '05', 'format 125s');
@@ -131,6 +158,43 @@
     const offset = Timer.ringOffset(50, 100);
     assert(offset > 0, 'ring offset');
     log('✓ ring offset');
+
+    // 10b. Timer hold/resume — regression test for the mid-session plan
+    // drawer feature: holding must freeze elapsed time exactly, and time
+    // spent on hold must never be silently added to or lost from the
+    // session's real elapsed time.
+    {
+      const realNow = Date.now;
+      let fakeNow = 1700000000000; // arbitrary fixed epoch
+      Date.now = () => fakeNow;
+
+      Timer.startFocus(25, () => {}, () => {});
+      assert(Timer.isRunning() === true, 'timer running after startFocus');
+      assert(Timer.getElapsedSecs() === 0, 'no time elapsed at start');
+
+      fakeNow += 600 * 1000; // +10 min
+      assert(Timer.getElapsedSecs() === 600, 'elapsed matches advanced time before hold');
+
+      Timer.hold(() => {});
+      assert(Timer.isHeld() === true, 'held after hold()');
+      assert(Timer.isRunning() === false, 'not running while held');
+      assert(Timer.getElapsedSecs() === 600, 'elapsed frozen at the moment hold was pressed');
+
+      fakeNow += 120 * 1000; // +2 min while held — must NOT count
+      assert(Timer.getElapsedSecs() === 600, 'elapsed still frozen during hold — this is the exact bug class the mid-session plan drawer depends on not having');
+
+      Timer.resume();
+      assert(Timer.isRunning() === true, 'running again after resume');
+      assert(Timer.isHeld() === false, 'not held after resume');
+      assert(Timer.getElapsedSecs() === 600, 'elapsed unchanged immediately after resume');
+
+      fakeNow += 300 * 1000; // +5 min post-resume
+      assert(Timer.getElapsedSecs() === 900, 'elapsed accumulates correctly after resume (600 + 300)');
+
+      Timer.stop();
+      Date.now = realNow;
+      log('✓ timer hold/resume elapsed-time accounting');
+    }
 
     // 11. Pillar logic — ensure getPillarById fallback
     // Simulate state

@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════════════
 // app.js — Main application controller
-// Owns: state, view routing, UI updates, event handling.
-// Depends on: storage.js, xp.js, timer.js
+// Owns: view routing, UI updates, event handling.
+// Depends on: storage.js, xp.js, timer.js, firebase.js, repository.js
+// All state persistence goes through Repository — see repository.js
+// for why (it closes the exact class of bug where the cloud and local
+// load paths used to run different migration logic).
 // ═══════════════════════════════════════════════════════
 
 (() => {
@@ -91,17 +94,18 @@
 
     showAuthLoading(true);
 
-    const result = await FB.loadState();
+    const { state: loaded, source } = await Repository.loadState({ signedIn: true });
+    state = loaded;
 
-    if (result.ok && result.state) {
-      // Returning user — load their cloud data
-      const base = Storage.defaultState();
-      state = Storage.migrate(Storage.deepMerge(base, result.state));
+    if (source === 'cloud') {
+      // Returning user — their cloud data is now loaded and migrated.
       // Clean up legacy sprints data (removed in v11)
       if (state.sprints) delete state.sprints;
       checkDayReset();
     } else {
-      // First time signing in — set name from Google profile
+      // First time signing in with this Google account (no cloud doc yet)
+      // — name them from their Google profile if we don't already have a
+      // name (e.g. from prior local guest use).
       if (!state.user.name) {
         state.user.name = user.displayName
           ? user.displayName.split(' ')[0].toUpperCase()
@@ -158,11 +162,11 @@
     }
   }
 
-  function enterOfflineMode(nameOverride) {
+  async function enterOfflineMode(nameOverride) {
     _isOfflineMode = true;
-    const base = Storage.defaultState();
     // load local state, ensure offline
-    state = Storage.load();
+    const { state: loaded } = await Repository.loadState({ signedIn: false });
+    state = loaded;
     // if no name, allow override
     if (nameOverride) state.user.name = nameOverride.toUpperCase();
     if (!state.user.name) state.user.name = 'OPERATIVE';
@@ -172,7 +176,7 @@
     const TAG_MIGRATE = { finals: 'academics', game: 'gamedev', urgent: 'academics' };
     state.tasks.forEach(t => { if (TAG_MIGRATE[t.tag]) t.tag = TAG_MIGRATE[t.tag]; });
     if (state.sprints) delete state.sprints;
-    Storage.save(state);
+    await saveState();
     Sound.setEnabled(state.settings.soundEnabled !== false);
     applyTheme(state.user.activeTheme || 'forge');
     applyRailCollapsed();
@@ -187,10 +191,9 @@
     }
   }
 
-  // ── Save locally AND to cloud ──
+  // ── Save locally AND to cloud (via Repository) ──
   async function saveState() {
-    Storage.save(state);
-    await FB.saveState(state);
+    await Repository.saveState(state, { signedIn: FB.isSignedIn() });
   }
 
   // ── COLLAPSIBLE RAIL (desktop sidebar) ──
@@ -2716,9 +2719,7 @@
     $('btn-reset-data').addEventListener('click', async () => {
       const confirmed = confirm('RESET ALL DATA?\n\nThis wipes your XP, levels, tasks and streak. Cannot be undone.');
       if (!confirmed) return;
-      state = Storage.defaultState();
-      await FB.deleteUserData();
-      Storage.save(state);
+      state = await Repository.clearState({ alsoCloud: FB.isSignedIn() });
       renderDashboard();
       renderAccountInfo();
       showView('dashboard');
@@ -2729,8 +2730,9 @@
     $('btn-signout').addEventListener('click', async () => {
       Timer.stop();
       await FB.signOut();
-      state = Storage.defaultState();
-      Storage.save(state);
+      // Don't touch their cloud data on sign-out — only reset the local
+      // view. They can sign back in later and pick up where they left off.
+      state = await Repository.clearState({ alsoCloud: false });
       // onAuthStateChanged fires → shows login screen
     });
 

@@ -34,16 +34,28 @@ w.AudioContext = w.webkitAudioContext = function(){
 
 // Classic scripts share one global lexical scope in a browser; concatenate
 // so top-level `const Sound` etc. are visible across files as they really are.
-const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','calendar.js','plan.js','app.js']
+const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','calendar.js','plan.js','app.js']
   .map(f => fs.readFileSync('./'+f,'utf8')).join('\n;\n');
 try { w.eval(bundle); } catch(e){ errs.push('LOAD: '+e.message); }
 
-setTimeout(() => {
+// enterOfflineMode() is async as of the Phase 0 Repository migration
+// (it awaits Repository.loadState()). In real usage this resolves on the
+// next microtask with no perceptible delay — Storage.load() has no real
+// I/O — but a synchronous test click can no longer assume the reload has
+// finished by the very next line. Small awaited settles below account
+// for that; they are not masking a real bug — see the passing repository
+// tests, plus enterOfflineMode()'s own internal render calls at the end
+// of its body, which is what actually updates the screen for real users
+// regardless of when the caller's click handler returns.
+const settle = (ms = 30) => new Promise(r => setTimeout(r, ms));
+
+setTimeout(async () => {
   const d = w.document;
   try {
     // enter offline mode
     const btn = d.getElementById('btn-offline-enter');
     if (btn) btn.click(); else errs.push('no offline button');
+    await settle();
 
     // seed a goal + tasks through the real API
     const S = w.Storage;
@@ -68,43 +80,44 @@ setTimeout(() => {
 
   // reload app state by re-clicking offline
   try { const b=d.getElementById('btn-offline-enter'); if(b) b.click(); } catch(e){ errs.push('reenter: '+e.message); }
+  await settle();
 
   const results = {};
-  function tryStep(name, fn){ try { fn(); results[name]='ok'; } catch(e){ results[name]='FAIL '+e.message; errs.push(name+': '+e.stack.split('\n').slice(0,3).join(' | ')); } }
+  async function tryStep(name, fn){ try { await fn(); results[name]='ok'; } catch(e){ results[name]='FAIL '+e.message; errs.push(name+': '+e.stack.split('\n').slice(0,3).join(' | ')); } }
 
-  tryStep('open plan mode', ()=>{ d.getElementById('mode-plan').click(); });
-  tryStep('objectives rendered', ()=>{
+  await tryStep('open plan mode', ()=>{ d.getElementById('mode-plan').click(); });
+  await tryStep('objectives rendered', ()=>{
     const n = d.querySelectorAll('#obj-grid .obj-card').length;
     if(!n) throw new Error('no goal cards, grid html='+d.getElementById('obj-grid').innerHTML.slice(0,200));
   });
-  tryStep('open goal detail', ()=>{ d.querySelector('#obj-grid .obj-card').click();
+  await tryStep('open goal detail', ()=>{ d.querySelector('#obj-grid .obj-card').click();
     if(!d.querySelector('.gd-title')) throw new Error('no goal detail'); });
-  tryStep('goal tasks listed', ()=>{
+  await tryStep('goal tasks listed', ()=>{
     const n=d.querySelectorAll('#gd-task-list .gd-task').length; if(n!==3) throw new Error('tasks='+n); });
-  tryStep('milestones listed', ()=>{
+  await tryStep('milestones listed', ()=>{
     if(!d.querySelector('.gd-ms')) throw new Error('no milestone'); });
-  tryStep('back to objectives', ()=>{ d.getElementById('btn-goal-back').click(); });
-  tryStep('open calendar', ()=>{ d.getElementById('plan-tab-calendar').click(); });
-  tryStep('week grid', ()=>{
+  await tryStep('back to objectives', ()=>{ d.getElementById('btn-goal-back').click(); });
+  await tryStep('open calendar', ()=>{ d.getElementById('plan-tab-calendar').click(); });
+  await tryStep('week grid', ()=>{
     const slots=d.querySelectorAll('.cal-slot').length;
     const cols=d.querySelectorAll('.cal-col').length;
     if(cols!==7) throw new Error('cols='+cols);
     if(slots!==7*18) throw new Error('slots='+slots);
   });
-  tryStep('unscheduled rail', ()=>{
+  await tryStep('unscheduled rail', ()=>{
     const n=d.querySelectorAll('#cal-unscheduled .cal-us').length;
     if(n!==2) throw new Error('unscheduled='+n);
   });
-  tryStep('view: day', ()=>{ d.querySelector('.cal-view-btn[data-view=day]').click();
+  await tryStep('view: day', ()=>{ d.querySelector('.cal-view-btn[data-view=day]').click();
     if(d.querySelectorAll('.cal-col').length!==1) throw new Error('day cols'); });
-  tryStep('view: month', ()=>{ d.querySelector('.cal-view-btn[data-view=month]').click();
+  await tryStep('view: month', ()=>{ d.querySelector('.cal-view-btn[data-view=month]').click();
     if(d.querySelectorAll('.cal-m-cell').length!==42) throw new Error('month cells'); });
-  tryStep('view: agenda', ()=>{ d.querySelector('.cal-view-btn[data-view=agenda]').click(); });
-  tryStep('view: week back', ()=>{ d.querySelector('.cal-view-btn[data-view=week]').click(); });
-  tryStep('nav prev/next/today', ()=>{
+  await tryStep('view: agenda', ()=>{ d.querySelector('.cal-view-btn[data-view=agenda]').click(); });
+  await tryStep('view: week back', ()=>{ d.querySelector('.cal-view-btn[data-view=week]').click(); });
+  await tryStep('nav prev/next/today', ()=>{
     d.getElementById('cal-prev').click(); d.getElementById('cal-next').click();
     d.getElementById('cal-today').click(); });
-  tryStep('schedule via API', ()=>{
+  await tryStep('schedule via API', ()=>{
     const un = w.Storage.load().tasks.find(t=>!t.scheduledStart);
     w.Calendar.scheduleTask(un.id, '2026-08-18', 10*60, 90);
     const after = w.Storage.load().tasks.find(t=>t.id===un.id);
@@ -112,13 +125,13 @@ setTimeout(() => {
     if(after.scheduledStart!=='2026-08-18T10:00:00') throw new Error('bad start '+after.scheduledStart);
     if(after.estimatedMinutes!==90) throw new Error('bad dur');
   });
-  tryStep('task detail opens', ()=>{
+  await tryStep('task detail opens', ()=>{
     const t = w.Storage.load().tasks[0];
     w.Calendar.openTaskDetail(t.id);
     if(!d.getElementById('td-text')) throw new Error('no inspector');
     if(d.getElementById('task-detail').classList.contains('hidden')) throw new Error('hidden');
   });
-  tryStep('task detail save', ()=>{
+  await tryStep('task detail save', ()=>{
     d.getElementById('td-text').value='RENAMED TASK';
     d.getElementById('td-mins').value='45';
     d.getElementById('td-save').click();
@@ -126,7 +139,7 @@ setTimeout(() => {
     if(!t) throw new Error('not saved');
     if(t.estimatedMinutes!==45) throw new Error('mins not saved');
   });
-  tryStep('schedule modal', ()=>{
+  await tryStep('schedule modal', ()=>{
     const t=w.Storage.load().tasks[1];
     w.Calendar.openScheduleModal(t.id);
     if(d.getElementById('schedule-modal').classList.contains('hidden')) throw new Error('hidden');
@@ -137,12 +150,12 @@ setTimeout(() => {
     const a=w.Storage.load().tasks.find(x=>x.id===t.id);
     if(a.scheduledStart!=='2026-08-19T14:00:00') throw new Error('start='+a.scheduledStart);
   });
-  tryStep('unschedule', ()=>{
+  await tryStep('unschedule', ()=>{
     const t=w.Storage.load().tasks.find(x=>x.scheduledStart);
     w.Calendar.unschedule(t.id);
     if(w.Storage.load().tasks.find(x=>x.id===t.id).scheduledStart) throw new Error('still scheduled');
   });
-  tryStep('new goal modal', ()=>{
+  await tryStep('new goal modal', ()=>{
     d.getElementById('plan-tab-objectives').click();
     d.getElementById('btn-new-goal').click();
     d.getElementById('goal-title-input').value='Build Godot Game';
@@ -152,14 +165,126 @@ setTimeout(() => {
     if(!g) throw new Error('goal not created');
     if(w.Storage.load().weeks) throw new Error('WEEKS WERE GENERATED!');
   });
-  tryStep('dashboard still works', ()=>{
+  await tryStep('dashboard still works', ()=>{
     d.getElementById('mode-forge').click();
     if(!d.getElementById('view-dashboard').classList.contains('active')) throw new Error('dash not active');
     if(!d.querySelectorAll('#quest-list .quest-item').length) throw new Error('no quests');
   });
-  tryStep('task queue works', ()=>{
+  await tryStep('task queue works', ()=>{
     d.getElementById('rail-tasks').click();
     if(!d.querySelectorAll('#task-list .task-item').length) throw new Error('no tasks in queue');
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // PHASE 0.5 — CHARACTERIZATION TESTS
+  //
+  // These pin down three specific flows that have actually broken in
+  // production this cycle. Independently seeded (don't rely on the
+  // exact end-state of the steps above) so they stay stable if earlier
+  // steps get reordered or edited.
+  // ═══════════════════════════════════════════════════════
+
+  await tryStep('seed completion-test task', async () => {
+    const S = w.Storage;
+    const st = S.load();
+    const gid = st.goals[0] ? st.goals[0].id : null;
+    st.tasks.push(Object.assign(S.taskDefaults(), {
+      id: S.uuid(), text: 'COMPLETE ME', tag: 'academics', goalId: gid,
+      completed: false, xpMultiplier: 1, createdAt: new Date().toISOString(),
+      completedAt: null,
+      scheduledStart: '2026-08-20T09:00:00', scheduledEnd: '2026-08-20T10:00:00'
+    }));
+    S.save(st);
+    // Force app.js to reload its in-memory state from the seed we just wrote
+    const b = d.getElementById('btn-offline-enter');
+    if (b) b.click(); else throw new Error('no offline button to reload state');
+    await settle();
+  });
+
+  await tryStep('scheduled task visible on calendar before completion', () => {
+    d.getElementById('mode-plan').click();
+    d.getElementById('plan-tab-calendar').click();
+    w.Calendar.setView('week');
+    const task = w.Storage.load().tasks.find(t => t.text === 'COMPLETE ME');
+    const block = d.querySelector(`.cal-block[data-task="${task.id}"]`);
+    if (!block) throw new Error('task block missing before completion — test setup broken');
+  });
+
+  await tryStep('complete task via task queue', () => {
+    d.getElementById('rail-tasks').click();
+    const task = w.Storage.load().tasks.find(t => t.text === 'COMPLETE ME');
+    const check = d.querySelector(`[data-complete="${task.id}"]`);
+    if (!check) throw new Error('no complete checkbox for seeded task');
+    check.click();
+    const after = w.Storage.load().tasks.find(t => t.id === task.id);
+    if (!after.completed) throw new Error('task not marked completed');
+  });
+
+  await tryStep('completed task disappears from calendar week view', () => {
+    d.getElementById('mode-plan').click();
+    d.getElementById('plan-tab-calendar').click();
+    w.Calendar.setView('week');
+    const task = w.Storage.load().tasks.find(t => t.text === 'COMPLETE ME');
+    const block = d.querySelector(`.cal-block[data-task="${task.id}"]`);
+    if (block) throw new Error('completed task STILL rendered on calendar — regression of the completed-task-hiding fix!');
+  });
+
+  await tryStep('completed task not in unscheduled rail either', () => {
+    const task = w.Storage.load().tasks.find(t => t.text === 'COMPLETE ME');
+    const item = d.querySelector(`.cal-us[data-task="${task.id}"]`);
+    if (item) throw new Error('completed task showing in unscheduled rail — should be fully hidden');
+  });
+
+  await tryStep('calendar preserveScroll: in-place edit keeps scroll position', () => {
+    w.Calendar.setView('week');
+    const scroll = d.getElementById('cal-scroll');
+    if (!scroll) throw new Error('no cal-scroll element');
+    // Sentinel value scrollToRelevant() could never produce naturally
+    // (it always clamps to >= 0), so any change away from it proves
+    // scrollToRelevant ran; staying at it proves scroll was preserved.
+    scroll.scrollTop = -12345;
+    const un = w.Storage.load().tasks.find(t => !t.scheduledStart && !t.completed);
+    w.Calendar.scheduleTask(un.id, '2026-08-21', 9 * 60, 60); // in-place edit
+    if (d.getElementById('cal-scroll').scrollTop !== -12345) {
+      throw new Error('in-place edit (scheduleTask) reset scroll position — regression of the drag/resize scroll-jump bug!');
+    }
+  });
+
+  await tryStep('calendar navigation resets scroll (expected — not a bug)', () => {
+    const scroll = d.getElementById('cal-scroll');
+    scroll.scrollTop = -12345;
+    w.Calendar.goToday(); // genuine navigation SHOULD jump to "now"
+    if (d.getElementById('cal-scroll').scrollTop === -12345) {
+      throw new Error('navigation did not scroll to relevant position — scrollToRelevant broken');
+    }
+  });
+
+  await tryStep('goal detail inline add-task form', () => {
+    d.getElementById('plan-tab-objectives').click();
+    const card = d.querySelector('#obj-grid .obj-card');
+    if (!card) throw new Error('no goal card to open');
+    card.click();
+
+    const addBtn = d.getElementById('gd-add-task');
+    if (!addBtn) throw new Error('no gd-add-task button');
+    addBtn.click(); // should expand the inline form
+
+    const form = d.getElementById('gd-inline-add');
+    if (!form || form.classList.contains('hidden')) throw new Error('inline add form did not expand');
+
+    d.getElementById('gd-task-input').value = 'NEW INLINE TASK';
+    const medBtn = d.querySelector('.gd-diff-btn[data-mult="1.5"]');
+    if (!medBtn) throw new Error('MEDIUM difficulty pill not found');
+    medBtn.click();
+
+    d.getElementById('gd-task-add').click();
+
+    const created = w.Storage.load().tasks.find(t => t.text === 'NEW INLINE TASK');
+    if (!created) throw new Error('inline add-task did not create a task');
+    if (created.xpMultiplier !== 1.5) throw new Error('difficulty pill selection not applied, got ' + created.xpMultiplier);
+    if (!d.getElementById('gd-inline-add').classList.contains('hidden')) {
+      throw new Error('inline form did not collapse after adding');
+    }
   });
 
   console.log(JSON.stringify(results,null,1));
