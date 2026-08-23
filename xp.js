@@ -269,6 +269,7 @@ const XP = (() => {
     recalcStreak,
     isStreakAtRisk,
     randomBreakTip,
+    getDayGap,
     RANKS
   };
 

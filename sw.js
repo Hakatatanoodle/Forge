@@ -4,7 +4,7 @@
 // Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'forge-v12-6';
+const CACHE_VERSION = 'forge-v13-0';
 const CACHE_NAME    = CACHE_VERSION;
 
 const APP_FILES = [
@@ -18,6 +18,7 @@ const APP_FILES = [
   './storage.js',
   './firebase.js',
   './repository.js',
+  './achievements.js',
   './calendar.js',
   './plan.js',
   './manifest.json'

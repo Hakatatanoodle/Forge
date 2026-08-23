@@ -52,13 +52,21 @@ const Storage = (() => {
     ],
     goals: [],
     // goal shape:
-    //   { id, pillarId, title, description, deadline, createdAt, status }
-    //   status: 'active' | 'completed'
+    //   { id, pillarId, title, description, deadline, createdAt, status, completedAt }
+    //   status: 'active' | 'completed' | 'archived'
+    //   completedAt: ISO timestamp, set when status becomes 'completed'.
     //   NOTE: goals no longer own "weeks". A goal is an OUTCOME with a
     //   deadline; temporal organisation belongs to the calendar.
-    milestones: []
+    milestones: [],
     // milestone shape: { id, goalId, title, order, createdAt }
     // Optional, meaningful checkpoints ("Prototype complete") — never "Week 3".
+    // NOTE: milestones have no separate "completed" field on purpose —
+    // a milestone is derived-complete when it has ≥1 linked task and all
+    // of them are done (see plan.js renderMilestones / achievements.js).
+    achievements: {}
+    // achievements shape: { [familyId]: { unlockedTiers: ['bronze', ...] } }
+    // Permanent, append-only record of which tiers have been paid out —
+    // see achievements.js for the full system.
   });
 
   // ── TASK SHAPE (documentation) ──

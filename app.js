@@ -672,8 +672,38 @@
     if (task) {
       task.completed   = true;
       task.completedAt = new Date().toISOString();
+      checkAchievements();
       saveState();
     }
+  }
+
+  // ══════════════════════════════════════════
+  // ACHIEVEMENTS
+  // ══════════════════════════════════════════
+  // Call after any state change that could move achievement progress
+  // (session complete, task complete, goal complete). Recomputes every
+  // family from scratch (see achievements.js), awards coins for any
+  // newly-crossed tier exactly once, and shows a toast per unlock.
+  // Does NOT call saveState() itself — the caller already does, right
+  // after, so this is covered by that same save.
+  function checkAchievements() {
+    const unlocked = Achievements.detectNewUnlocks(state);
+    if (!unlocked.length) return;
+
+    unlocked.forEach(u => {
+      state.user.coins = (state.user.coins || 0) + u.coinReward;
+    });
+
+    // Show one toast per unlock, staggered slightly so multiple
+    // simultaneous unlocks (rare, but possible on a big catch-up
+    // session) don't all flash and vanish at once.
+    unlocked.forEach((u, i) => {
+      setTimeout(() => {
+        showToast(`🏆 ${u.name.toUpperCase()} — ${u.tier.toUpperCase()} +${u.coinReward}◎`, 'success', 3200);
+      }, i * 1400);
+    });
+
+    Sound.levelUp();
   }
 
   // Re-render Plan Mode whenever tasks change elsewhere (queue, dashboard,
@@ -1140,6 +1170,15 @@
     state.today.sessionsCompleted += 1;
 
     // Log session
+    // focusedMinutes: actual worked time (excludes hold time) — used by
+    // achievements (Deep Forge, Forge Hours) instead of the wall-clock
+    // startTime→endTime span, which would incorrectly include any time
+    // spent held via the mid-session plan drawer.
+    // taskScheduledStartSnapshot: the task's scheduling AT COMPLETION
+    // TIME, pinned into the log so achievements (On Tempo) reflect what
+    // was actually true when the session happened — immune to the task
+    // being rescheduled or deleted afterward.
+    const _completingTask = state.tasks.find(t => t.id === sessionContext.taskId);
     state.sessions.push({
       id:        Storage.uuid(),
       taskId:    sessionContext.taskId,
@@ -1148,11 +1187,14 @@
       endTime:   new Date().toISOString(),
       completed: true,
       xpEarned:  xpResult.total,
-      coinsEarned: xpResult.coinsEarned
+      coinsEarned: xpResult.coinsEarned,
+      focusedMinutes: actualMinutes,
+      taskScheduledStartSnapshot: _completingTask ? _completingTask.scheduledStart : null
     });
 
     // Persist
     state.user = updatedUser;
+    checkAchievements();
     saveState();
 
     // Show reward screen
@@ -1566,6 +1608,7 @@
       showToast,
       forgeConfirm,
       sound:         Sound,
+      checkAchievements,
       onTasksChanged: () => {
         renderDashboard();
         if ($('task-list')) renderTaskList();
@@ -1778,6 +1821,46 @@
         _showShopToast('STREAK FREEZE ACQUIRED');
       });
     });
+
+    // ── Render achievements ──
+    renderAchievements();
+  }
+
+  function renderAchievements() {
+    const list = $('shop-achievements-list');
+    if (!list || !window.Achievements) return;
+
+    const progress = Achievements.computeProgress(state);
+    const totalUnlocked = progress.reduce((sum, fam) => sum + fam.unlockedTiers.length, 0);
+    const totalPossible  = progress.length * 3;
+
+    const countEl = $('achievements-count');
+    if (countEl) countEl.textContent = `${totalUnlocked} / ${totalPossible}`;
+
+    list.innerHTML = progress.map(fam => {
+      const nextText = fam.nextTier
+        ? `${fam.nextTier.progress} / ${fam.nextTier.threshold} ${fam.unit} to ${fam.nextTier.tier.toUpperCase()}`
+        : `MAXED OUT`;
+      const pct = fam.nextTier
+        ? Math.min(100, Math.round((fam.nextTier.progress / fam.nextTier.threshold) * 100))
+        : 100;
+
+      const tierDots = fam.tiers.map(t => {
+        const icon = t.tier === 'bronze' ? '🥉' : t.tier === 'silver' ? '🥈' : '🥇';
+        return `<span class="ach-tier-dot ${t.unlocked ? 'unlocked' : ''}" title="${t.tier.toUpperCase()} — ${t.threshold} ${fam.unit} — ◎${t.coinReward}">${icon}</span>`;
+      }).join('');
+
+      return `
+        <div class="ach-card ${fam.unlockedTiers.length ? 'has-progress' : ''}">
+          <div class="ach-card-top">
+            <span class="ach-name">${escHtml(fam.name)}</span>
+            <span class="ach-tiers">${tierDots}</span>
+          </div>
+          <div class="ach-desc">${escHtml(fam.description)}</div>
+          <div class="ach-progress-track"><div class="ach-progress-fill" style="width:${pct}%"></div></div>
+          <div class="ach-progress-label">${nextText}</div>
+        </div>`;
+    }).join('');
   }
 
   let _toastTimer = null;

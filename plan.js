@@ -313,9 +313,11 @@ const Plan = (() => {
             <span class="gd-pillar">${pillar.icon} ${ctx.escHtml(pillar.name)}</span>
             <h2 class="gd-title">${ctx.escHtml(goal.title)}</h2>
             ${goal.description ? `<p class="gd-desc">${ctx.escHtml(goal.description)}</p>` : ''}
+            ${goal.status === 'completed' ? `<span class="gd-completed-badge">✓ COMPLETED ${goal.completedAt ? ctx.escHtml(goal.completedAt.slice(0,10)) : ''}</span>` : ''}
           </div>
           <div class="gd-hero-actions">
             <button class="btn-ghost" id="gd-edit">EDIT GOAL</button>
+            ${goal.status !== 'completed' ? `<button class="btn-ghost" id="gd-mark-complete">✓ MARK COMPLETE</button>` : ''}
             <button class="btn-primary" id="gd-add-task">+ ADD TASK</button>
           </div>
         </div>
@@ -388,6 +390,21 @@ const Plan = (() => {
     renderMilestones(goal, milestones);
 
     $('gd-edit').addEventListener('click', () => openGoalModal(goal.id));
+
+    const markCompleteBtn = $('gd-mark-complete');
+    if (markCompleteBtn) {
+      markCompleteBtn.addEventListener('click', () => {
+        ctx.forgeConfirm(`Mark "${goal.title}" as complete?`, () => {
+          goal.status      = 'completed';
+          goal.completedAt = new Date().toISOString();
+          if (ctx.checkAchievements) ctx.checkAchievements();
+          ctx.save();
+          ctx.sound.click();
+          ctx.showToast('GOAL COMPLETE ✓', 'success');
+          showTab('objectives');
+        });
+      });
+    }
 
     // + ADD TASK hero button → expand inline form
     $('gd-add-task').addEventListener('click', () => {
