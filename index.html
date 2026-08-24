@@ -30,9 +30,10 @@
         <span class="rail-brand-sub">EXECUTION ENGINE</span>
       </div>
 
-      <div class="rail-avatar" id="rail-avatar">
+      <button class="rail-avatar" id="rail-avatar" title="Change avatar" type="button">
+        <img id="avatar-img" class="avatar-img hidden" alt="" />
         <span id="avatar-initials" class="avatar-initials">—</span>
-      </div>
+      </button>
 
       <div class="rail-user">
         <span id="display-rank" class="rank-label">LVL 1 · INITIATE</span>
@@ -73,7 +74,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v13.0</span>
+        <span class="rail-version">FORGE v13.1</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -90,7 +91,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v13.0</span>
+          <span class="logo-version">v13.1</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -182,7 +183,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v13.0</span>
+          <span id="drawer-version" class="drawer-version">FORGE v13.1</span>
         </div>
       </div>
 
@@ -849,6 +850,32 @@
       </div>
     </div>
 
+    <!-- ════════════════════════════════════════
+         VIEW: AVATARS
+    ════════════════════════════════════════ -->
+    <div id="view-avatars" class="view">
+      <div class="avatars-container">
+
+        <div class="avatars-header">
+          <button id="btn-avatars-back" class="icon-btn">← BACK</button>
+          <span class="avatars-title">AVATARS</span>
+          <span class="avatars-count" id="avatars-count">0 / 10</span>
+        </div>
+
+        <div class="avatars-coins-bar">
+          <span class="avatars-coins-icon">◎</span>
+          <span id="avatars-coins-val">0</span>
+        </div>
+
+        <div class="avatars-tagline">DISCIPLINE BUILDS IDENTITY.</div>
+
+        <div id="avatars-grid" class="avatars-grid">
+          <!-- Rendered by JS -->
+        </div>
+
+      </div>
+    </div>
+
   <!-- Custom confirm modal -->
   <div id="forge-confirm-backdrop" class="forge-confirm-backdrop hidden">
     <div class="forge-confirm-modal">
@@ -1043,7 +1070,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v13.0</div>
+  <div class="version-stamp">FORGE v13.1</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
@@ -1067,6 +1094,7 @@
   <script src="firebase.js"></script>
   <script src="repository.js"></script>
   <script src="achievements.js"></script>
+  <script src="avatars.js"></script>
   <script src="calendar.js"></script>
   <script src="plan.js"></script>
   <script src="app.js"></script>

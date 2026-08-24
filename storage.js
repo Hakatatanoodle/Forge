@@ -24,6 +24,8 @@ const Storage = (() => {
       coins: 0,
       unlockedThemes: ['forge', 'venom'], // forge + venom always free
       activeTheme: 'forge',
+      avatar: 'operative',        // active avatar id — see avatars.js
+      unlockedAvatars: [],        // owned non-default avatar ids (default tier is always owned)
       streak: {
         current: 0,
         longest: 0,

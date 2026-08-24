@@ -34,7 +34,7 @@ w.AudioContext = w.webkitAudioContext = function(){
 
 // Classic scripts share one global lexical scope in a browser; concatenate
 // so top-level `const Sound` etc. are visible across files as they really are.
-const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','achievements.js','calendar.js','plan.js','app.js']
+const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','achievements.js','avatars.js','calendar.js','plan.js','app.js']
   .map(f => fs.readFileSync('./'+f,'utf8')).join('\n;\n');
 try { w.eval(bundle); } catch(e){ errs.push('LOAD: '+e.message); }
 
@@ -188,11 +188,17 @@ setTimeout(async () => {
     const S = w.Storage;
     const st = S.load();
     const gid = st.goals[0] ? st.goals[0].id : null;
+    // Use TODAY, not a hardcoded date — a fixed absolute date eventually
+    // falls outside "this week" as real wall-clock time passes, which
+    // would make Calendar.setView('week') (defaults to the week
+    // containing today) silently fail to show the seeded task. Relative
+    // dates keep this test valid indefinitely.
+    const todayStr = S.dateStr(new Date());
     st.tasks.push(Object.assign(S.taskDefaults(), {
       id: S.uuid(), text: 'COMPLETE ME', tag: 'academics', goalId: gid,
       completed: false, xpMultiplier: 1, createdAt: new Date().toISOString(),
       completedAt: null,
-      scheduledStart: '2026-08-20T09:00:00', scheduledEnd: '2026-08-20T10:00:00'
+      scheduledStart: todayStr + 'T09:00:00', scheduledEnd: todayStr + 'T10:00:00'
     }));
     S.save(st);
     // Force app.js to reload its in-memory state from the seed we just wrote
@@ -354,6 +360,87 @@ setTimeout(async () => {
     S.save(before);
     const after = S.load();
     if ((after.user.coins || 0) !== coinsBefore) throw new Error('coins changed despite no new unlocks');
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // AVATARS — end-to-end UI integration
+  //
+  // Pure ownership/purchase/auto-unlock logic is covered exhaustively
+  // in tests.avatars.js (Node-only, no DOM). These steps verify the
+  // real click paths through the actual app.
+  // ═══════════════════════════════════════════════════════
+
+  await tryStep('avatars view opens from rail avatar', () => {
+    d.getElementById('rail-avatar').click();
+    const view = d.getElementById('view-avatars');
+    if (!view || !view.classList.contains('active')) throw new Error('avatars view did not open');
+    const grid = d.getElementById('avatars-grid');
+    if (!grid || !grid.children.length) throw new Error('avatars grid did not render');
+  });
+
+  await tryStep('default avatars show as FREE with no buy button', () => {
+    const cards = Array.from(d.querySelectorAll('.av-card.tier-default'));
+    if (cards.length !== 2) throw new Error('expected 2 default avatars, got ' + cards.length);
+    cards.forEach(c => {
+      if (!c.querySelector('.av-tag-free')) throw new Error('default avatar missing FREE tag');
+    });
+  });
+
+  await tryStep('buy a coins-tier avatar via UI', async () => {
+    const S = w.Storage;
+    const st = S.load();
+    st.user.coins = 5000; // ensure affordable
+    S.save(st);
+
+    // Writing to localStorage doesn't touch app.js's live in-memory
+    // `state` object — force a reload the same way the earlier
+    // "seed completion-test task" step does, then re-navigate back to
+    // the avatars view.
+    const reloadBtn = d.getElementById('btn-offline-enter');
+    if (reloadBtn) reloadBtn.click();
+    await settle();
+    d.getElementById('rail-avatar').click();
+    await settle();
+
+    const buyBtn = d.querySelector('.av-buy-btn[data-buy="vanguard"]');
+    if (!buyBtn) throw new Error('no buy button for vanguard');
+    buyBtn.click();
+
+    const okBtn = d.getElementById('forge-confirm-ok');
+    if (!okBtn || d.getElementById('forge-confirm-backdrop').classList.contains('hidden')) {
+      throw new Error('purchase confirm modal did not open');
+    }
+    okBtn.click();
+    await settle();
+
+    const after = S.load();
+    if (!w.Avatars.isOwned(after, 'vanguard')) throw new Error('vanguard not owned after purchase confirm');
+    if (after.user.coins !== 5000 - 300) throw new Error('coins not deducted correctly, got ' + after.user.coins);
+  });
+
+  await tryStep('select an owned avatar updates rail + active state', async () => {
+    const card = d.querySelector('.av-card[data-avatar="vanguard"]');
+    if (!card) throw new Error('vanguard card not found after purchase');
+    card.click();
+    await settle();
+
+    const st = w.Storage.load();
+    if (st.user.avatar !== 'vanguard') throw new Error('active avatar did not update to vanguard, got ' + st.user.avatar);
+
+    const activeCard = d.querySelector('.av-card.active');
+    if (!activeCard || activeCard.dataset.avatar !== 'vanguard') throw new Error('active card highlight did not move to vanguard');
+  });
+
+  await tryStep('achievement-tier avatars show locked with requirement text', () => {
+    const lockedCard = d.querySelector('.av-card[data-avatar="ironborn"]');
+    if (!lockedCard) throw new Error('ironborn card not found');
+    if (lockedCard.dataset.owned === '1') {
+      // If an earlier test already pushed Iron Streak to Gold, this is
+      // legitimately unlocked — not a failure. Otherwise it must show locked.
+    } else {
+      if (!lockedCard.classList.contains('locked')) throw new Error('unowned achievement avatar missing locked class');
+      if (!lockedCard.querySelector('.av-tag-locked')) throw new Error('locked avatar missing requirement tag');
+    }
   });
 
   console.log(JSON.stringify(results,null,1));

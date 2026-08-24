@@ -42,6 +42,7 @@
     summary:    $('view-summary'),
     shop:       $('view-shop'),
     plan:       $('view-plan'),
+    avatars:    $('view-avatars'),
   };
 
   // ══════════════════════════════════════════
@@ -258,13 +259,9 @@
     $('display-name').textContent  = user.name.toUpperCase();
     $('display-level').textContent = user.level;
 
-    // Avatar — initials monogram
-    const avatarEl = $('avatar-initials');
-    if (avatarEl) {
-      const initials = String(user.name || 'OPERATIVE')
-        .trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || 'OP';
-      avatarEl.textContent = initials;
-    }
+    // Avatar — active avatar image, falls back to initials monogram if
+    // the image file doesn't exist yet (see avatars.js header comment).
+    renderActiveAvatar();
 
     // Greeting + date + quote
     const greetEl = $('dash-greeting');
@@ -688,22 +685,36 @@
   // after, so this is covered by that same save.
   function checkAchievements() {
     const unlocked = Achievements.detectNewUnlocks(state);
-    if (!unlocked.length) return;
 
     unlocked.forEach(u => {
       state.user.coins = (state.user.coins || 0) + u.coinReward;
     });
 
-    // Show one toast per unlock, staggered slightly so multiple
-    // simultaneous unlocks (rare, but possible on a big catch-up
-    // session) don't all flash and vanish at once.
+    // Show one toast per achievement unlock, staggered slightly so
+    // multiple simultaneous unlocks (rare, but possible on a big
+    // catch-up session) don't all flash and vanish at once.
     unlocked.forEach((u, i) => {
       setTimeout(() => {
         showToast(`🏆 ${u.name.toUpperCase()} — ${u.tier.toUpperCase()} +${u.coinReward}◎`, 'success', 3200);
       }, i * 1400);
     });
 
-    Sound.levelUp();
+    if (unlocked.length) Sound.levelUp();
+
+    // Avatar auto-unlocks are tied to achievement GOLD tiers. Checked
+    // unconditionally (not just when `unlocked.length` above is > 0) so
+    // that a user who already had Gold on a family BEFORE the avatar
+    // system existed still gets the avatar granted the next time this
+    // runs, instead of waiting for some future unrelated tier crossing.
+    if (window.Avatars) {
+      const avatarUnlocks = Avatars.checkAutoUnlocks(state);
+      avatarUnlocks.forEach((av, i) => {
+        setTimeout(() => {
+          showToast(`👤 AVATAR UNLOCKED — ${av.name}`, 'success', 3200);
+        }, (unlocked.length + i) * 1400);
+      });
+      if (avatarUnlocks.length) Sound.levelUp();
+    }
   }
 
   // Re-render Plan Mode whenever tasks change elsewhere (queue, dashboard,
@@ -1701,6 +1712,143 @@
     cancel.addEventListener('click', handleCancel);
   }
 
+  // ══════════════════════════════════════════
+  // AVATARS
+  // ══════════════════════════════════════════
+
+  // Sets the rail avatar circle to the active avatar's image, falling
+  // back to the initials monogram if the image file isn't there yet
+  // (404 → onerror fires → we swap to the text fallback). This is the
+  // ONLY place avatar image fallback logic lives — reused by the
+  // gallery view below via the same helper.
+  function renderActiveAvatar() {
+    const img = $('avatar-img');
+    const initialsEl = $('avatar-initials');
+    if (!img || !initialsEl) return;
+
+    const user = state.user;
+    const initials = String(user.name || 'OPERATIVE')
+      .trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || 'OP';
+    initialsEl.textContent = initials;
+
+    const active = window.Avatars ? Avatars.getActiveAvatar(state) : null;
+    if (!active) {
+      img.classList.add('hidden');
+      initialsEl.classList.remove('hidden');
+      return;
+    }
+
+    img.onerror = () => {
+      img.classList.add('hidden');
+      initialsEl.classList.remove('hidden');
+    };
+    img.onload = () => {
+      img.classList.remove('hidden');
+      initialsEl.classList.add('hidden');
+    };
+    img.src = active.img;
+  }
+
+  function renderAvatarsView() {
+    const grid = $('avatars-grid');
+    if (!grid || !window.Avatars) return;
+
+    const list = Avatars.listWithStatus(state);
+    const groups = [
+      { tier: 'default',     label: 'DEFAULT',     sub: 'Everyone starts with these.' },
+      { tier: 'coins',       label: 'COINS',       sub: 'Buy with coins from the Armory.' },
+      { tier: 'achievement', label: 'ACHIEVEMENT', sub: 'Unlock by earning achievements.' }
+    ];
+
+    $('avatars-coins-val').textContent = state.user.coins || 0;
+    const ownedCount = list.filter(a => a.owned).length;
+    $('avatars-count').textContent = `${ownedCount} / ${list.length}`;
+
+    grid.innerHTML = groups.map(g => {
+      const cards = list.filter(a => a.tier === g.tier).map(av => {
+        let footer;
+        if (av.tier === 'default') {
+          footer = `<span class="av-tag av-tag-free">FREE</span>`;
+        } else if (av.tier === 'coins') {
+          footer = av.owned
+            ? `<span class="av-tag av-tag-owned">OWNED</span>`
+            : `<button class="av-buy-btn" data-buy="${av.id}">◎ ${av.cost}</button>`;
+        } else {
+          footer = av.owned
+            ? `<span class="av-tag av-tag-owned">UNLOCKED</span>`
+            : `<span class="av-tag av-tag-locked">🔒 ${escHtml(av.requirementLabel)}${av.progressLabel ? ` · ${escHtml(av.progressLabel)}` : ''}</span>`;
+        }
+        return `
+          <div class="av-card tier-${av.tier} ${av.active ? 'active' : ''} ${!av.owned ? 'locked' : ''}"
+               data-avatar="${av.id}" data-owned="${av.owned ? '1' : '0'}">
+            <div class="av-portrait">
+              <img class="av-portrait-img hidden" alt="${escHtml(av.name)}" data-src="${av.img}" />
+              <span class="av-portrait-fallback">${escHtml(av.name.slice(0,2))}</span>
+              ${av.active ? '<span class="av-active-badge">✓</span>' : ''}
+            </div>
+            <div class="av-name">${escHtml(av.name)}</div>
+            ${footer}
+          </div>`;
+      }).join('');
+
+      if (!cards) return '';
+      return `
+        <div class="av-group">
+          <div class="av-group-head">
+            <span class="av-group-label">${g.label}</span>
+            <span class="av-group-sub">${g.sub}</span>
+          </div>
+          <div class="av-group-cards">${cards}</div>
+        </div>`;
+    }).join('');
+
+    // Load portrait images with graceful fallback (same pattern as the rail avatar)
+    grid.querySelectorAll('.av-portrait-img').forEach(img => {
+      img.onload  = () => { img.classList.remove('hidden'); img.nextElementSibling.classList.add('hidden'); };
+      img.onerror = () => { img.classList.add('hidden'); img.nextElementSibling.classList.remove('hidden'); };
+      img.src = img.dataset.src;
+    });
+
+    // Click a card: owned → select it; coins-tier unowned → handled by
+    // the buy button separately; achievement-tier unowned → no-op (it
+    // unlocks itself automatically, nothing to click).
+    grid.querySelectorAll('.av-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.av-buy-btn')) return; // handled below
+        const id = card.dataset.avatar;
+        if (card.dataset.owned !== '1') return;
+        if (Avatars.selectAvatar(state, id)) {
+          saveState();
+          Sound.click();
+          renderActiveAvatar();
+          renderAvatarsView();
+        }
+      });
+    });
+
+    grid.querySelectorAll('.av-buy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.buy;
+        const av = Avatars.getDef(id);
+        if (!av) return;
+        if ((state.user.coins || 0) < av.cost) {
+          showToast('NOT ENOUGH COINS', 'error');
+          return;
+        }
+        forgeConfirm(`Buy ${av.name} for ◎ ${av.cost}?`, () => {
+          const result = Avatars.purchase(state, id);
+          if (result.ok) {
+            saveState();
+            Sound.xpGain();
+            showToast(`${av.name} ACQUIRED`, 'success');
+            renderAvatarsView();
+          }
+        });
+      });
+    });
+  }
+
   function renderShop() {
     const coins    = state.user.coins || 0;
     const unlocked = state.user.unlockedThemes || ['forge', 'venom'];
@@ -2438,6 +2586,9 @@
     $('rail-shop') && $('rail-shop').addEventListener('click', () => {
       renderShop(); showView('shop'); setRailNav('shop');
     });
+    $('rail-avatar') && $('rail-avatar').addEventListener('click', () => {
+      renderAvatarsView(); showView('avatars');
+    });
     $('rail-settings') && $('rail-settings').addEventListener('click', () => {
       renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');
     });
@@ -2683,6 +2834,12 @@
     });
 
     $('btn-shop-back').addEventListener('click', () => {
+      Sound.click();
+      showView('dashboard');
+      renderDashboard();
+    });
+
+    $('btn-avatars-back') && $('btn-avatars-back').addEventListener('click', () => {
       Sound.click();
       showView('dashboard');
       renderDashboard();
