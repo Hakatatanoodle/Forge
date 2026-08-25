@@ -1,71 +1,112 @@
 // ═══════════════════════════════════════════════════════
-// sw.js — Service Worker
-// Caches all app files on first load → works fully offline.
+// sw.js — Service Worker v12.1
+// Network-first for all app files — changes show immediately.
+// Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'forge-v7';
+const CACHE_VERSION = 'forge-v13-1';
+const CACHE_NAME    = CACHE_VERSION;
 
-const FILES_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/sound.js',
-  '/timer.js',
-  '/xp.js',
-  '/storage.js',
-  '/firebase.js',
-  '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&display=swap'
+const APP_FILES = [
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './sound.js',
+  './timer.js',
+  './xp.js',
+  './storage.js',
+  './firebase.js',
+  './repository.js',
+  './achievements.js',
+  './avatars.js',
+  './calendar.js',
+  './plan.js',
+  './manifest.json'
 ];
 
-// Install: cache everything
+// ── Install: pre-cache everything ──────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(FILES_TO_CACHE);
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const file of APP_FILES) {
+        try { await cache.add(file); }
+        catch (e) { console.warn('FORGE SW: failed to cache', file, e.message); }
+      }
     })
   );
+  // Take over immediately — don't wait for old SW to idle
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
+// ── Activate: nuke every old cache version ─────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => {
+        console.log('FORGE SW: deleting old cache', k);
+        return caches.delete(k);
+      }))
     )
   );
   self.clients.claim();
 });
 
-// Fetch: network first, fall back to cache
-// This ensures updates always come through on fresh open
+// ── Fetch strategy ──────────────────────────────────────
+// External (Firebase, Google APIs) → always bypass SW
+// App files (JS, CSS, HTML)        → network-first, cache fallback
+// Everything else                  → cache-first, background update
+
 self.addEventListener('fetch', event => {
-  // For HTML files — always go network first so new deploys are picked up
-  if (event.request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          return res;
-        })
-        .catch(() => caches.match(event.request))
-    );
+  const req = event.request;
+  const url = req.url;
+
+  // 1. Always bypass for external services
+  if (url.includes('firestore.googleapis.com') ||
+      url.includes('firebase')                 ||
+      url.includes('googleapis')               ||
+      url.includes('gstatic')) {
     return;
   }
 
-  // For everything else — cache first (fast), but update cache in background
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      const networkFetch = fetch(event.request).then(res => {
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, res.clone()));
-        return res;
-      });
-      return cached || networkFetch;
-    })
-  );
+  // 2. Network-first for all app files (HTML, JS, CSS, JSON)
+  const isAppFile = APP_FILES.some(f => url.endsWith(f.replace('./', '/')))
+    || url.endsWith('/')
+    || /\.(html|js|css|json)$/.test(url);
+
+  if (isAppFile) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // 3. Cache-first with background update for everything else (icons, etc.)
+  event.respondWith(cacheFirstWithUpdate(req));
 });
+
+// Network-first: try network, update cache, fall back to cache if offline
+async function networkFirst(req) {
+  try {
+    const res = await fetch(req);
+    if (res && res.status === 200) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(req, res.clone());
+    }
+    return res;
+  } catch (_) {
+    const cached = await caches.match(req);
+    return cached || new Response('Offline', { status: 503 });
+  }
+}
+
+// Cache-first: serve from cache, silently refresh in background
+async function cacheFirstWithUpdate(req) {
+  const cached = await caches.match(req);
+  const fetchPromise = fetch(req).then(res => {
+    if (res && res.status === 200) {
+      caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+    }
+    return res;
+  }).catch(() => {});
+
+  return cached || fetchPromise;
+}

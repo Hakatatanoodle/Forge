@@ -176,3 +176,6 @@ const Timer = (() => {
   };
 
 })();
+
+// Expose for classic-script consumers (tests.js reads window.Timer).
+if (typeof window !== 'undefined') window.Timer = Timer;

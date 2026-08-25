@@ -9,7 +9,7 @@
   <title>FORGE</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -30,13 +30,8 @@
         <span class="rail-brand-sub">EXECUTION ENGINE</span>
       </div>
 
-      <button class="rail-avatar" id="rail-avatar" title="Change avatar" type="button">
-        <img id="avatar-img" class="avatar-img hidden" alt="" />
-        <span id="avatar-initials" class="avatar-initials">—</span>
-      </button>
-
       <div class="rail-user">
-        <span id="display-rank" class="rank-label">LVL 1 · INITIATE</span>
+        <span id="display-rank" class="rank-label">INITIATE</span>
         <span id="display-name" class="user-name">—</span>
       </div>
 
@@ -65,17 +60,16 @@
       </div>
 
       <nav class="rail-nav">
-        <button class="mode-btn rail-nav-item active" id="mode-forge"><span class="nav-ico">⛏</span><span class="nav-label">FORGE</span></button>
-        <button class="mode-btn rail-nav-item" id="mode-plan"><span class="nav-ico">▦</span><span class="nav-label">PLAN</span></button>
-        <button class="rail-nav-item" id="rail-tasks"><span class="nav-ico">⊞</span><span class="nav-label">TASK QUEUE</span></button>
-        <button class="rail-nav-item" id="rail-history"><span class="nav-ico">◫</span><span class="nav-label">COMBAT LOG</span></button>
-        <button class="rail-nav-item" id="rail-shop"><span class="nav-ico">◈</span><span class="nav-label">ARMORY</span></button>
-        <button class="rail-nav-item" id="rail-settings"><span class="nav-ico">⚙</span><span class="nav-label">SYSTEM CONFIG</span></button>
+        <button class="mode-btn rail-nav-item active" id="mode-forge">⛏ FORGE</button>
+        <button class="mode-btn rail-nav-item" id="mode-plan">▦ PLAN</button>
+        <button class="rail-nav-item" id="rail-tasks">⊞ TASK QUEUE</button>
+        <button class="rail-nav-item" id="rail-history">◫ COMBAT LOG</button>
+        <button class="rail-nav-item" id="rail-shop">◈ ARMORY</button>
+        <button class="rail-nav-item" id="rail-settings">⚙ SYSTEM CONFIG</button>
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v13.1</span>
-        <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
+        <span class="rail-version">FORGE v11.8</span>
       </div>
 
       <button class="icon-btn rail-burger" id="btn-open-drawer" title="Menu">≡</button>
@@ -91,7 +85,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v13.1</span>
+          <span class="logo-version">v11.8</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -183,104 +177,51 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v13.1</span>
+          <span id="drawer-version" class="drawer-version">FORGE v11.8</span>
         </div>
       </div>
 
-      <!-- ══ CENTER COLUMN — greeting · quote · objective ══ -->
-      <div class="dashboard-center">
-
-        <!-- Greeting -->
-        <div class="dash-greeting">
-          <span id="dash-greeting" class="dash-greeting-line">—</span>
-          <span id="dash-date" class="dash-date-line">—</span>
+      <!-- Hero: TODAY'S OBJECTIVE -->
+      <div class="focus-block">
+        <div class="focus-label">TODAY'S OBJECTIVE</div>
+        <div id="current-task-display" class="task-display">
+          <span class="task-empty-state">No tasks queued.<br/>Add one below.</span>
         </div>
-
-        <!-- Quote card -->
-        <div class="quote-card">
-          <span id="quote-text" class="quote-text">—</span>
-        </div>
-
-        <!-- Hero: TODAY'S OBJECTIVE -->
-        <div class="focus-block">
-          <div class="focus-label">TODAY'S OBJECTIVE</div>
-          <div id="current-task-display" class="task-display">
-            <span class="task-empty-state">No tasks queued.<br/>Add one below.</span>
-          </div>
-          <div id="objective-progress-row" class="objective-progress-row hidden">
-            <div class="objective-progress-track">
-              <div id="objective-progress-fill" class="objective-progress-fill"></div>
-            </div>
-            <span id="objective-progress-label" class="objective-progress-label"></span>
-          </div>
-          <div id="objective-xp-est" class="objective-xp-est"></div>
-          <div id="rank-progress-line" class="rank-progress-line"></div>
-          <button id="btn-start-session" class="btn-primary btn-start" disabled>
-            <span class="btn-start-text">▶ START SESSION</span>
-          </button>
-        </div>
-
+        <div id="rank-progress-line" class="rank-progress-line"></div>
+        <button id="btn-start-session" class="btn-primary btn-start" disabled>
+          <span class="btn-start-text">▶ START SESSION</span>
+        </button>
       </div>
 
-      <!-- ══ SIDE COLUMN — quests · quick-add · focus stats ══ -->
-      <div class="dashboard-side">
-
-        <!-- Today's Quests -->
-        <div class="quest-section">
-          <div class="quest-header">
-            <span class="quest-title">TODAY'S QUESTS</span>
-            <span id="quest-progress" class="quest-progress"></span>
-          </div>
-          <div id="quest-list" class="quest-list"></div>
+      <!-- Today's Quests -->
+      <div class="quest-section">
+        <div class="quest-header">
+          <span class="quest-title">TODAY'S QUESTS</span>
+          <span id="quest-progress" class="quest-progress"></span>
         </div>
+        <div id="quest-list" class="quest-list"></div>
+      </div>
 
-        <!-- Quick Add (collapsed behind toggle) -->
-        <div class="quick-add-section">
-          <button id="btn-toggle-quick-add" class="btn-ghost btn-full quick-add-toggle">+ ADD QUEST</button>
-          <div id="quick-add-form" class="quick-add-form hidden">
-            <div class="quick-add-row">
-              <input type="text" id="input-task" class="text-input task-input" placeholder="what needs to be done?" maxlength="80" />
+      <!-- Quick Add (collapsed behind toggle) -->
+      <div class="quick-add-section">
+        <button id="btn-toggle-quick-add" class="btn-ghost btn-full quick-add-toggle">+ ADD QUEST</button>
+        <div id="quick-add-form" class="quick-add-form hidden">
+          <div class="quick-add-row">
+            <input type="text" id="input-task" class="text-input task-input" placeholder="what needs to be done?" maxlength="80" />
+          </div>
+          <div class="pillar-chips-row" id="pillar-chips-row">
+            <!-- Rendered dynamically from state.pillars -->
+          </div>
+          <div class="difficulty-row">
+            <span class="diff-label">DIFFICULTY</span>
+            <div class="diff-buttons">
+              <button class="diff-btn active" data-diff="1">EASY</button>
+              <button class="diff-btn" data-diff="1.5">MEDIUM</button>
+              <button class="diff-btn" data-diff="2">HARD</button>
             </div>
-            <div class="pillar-chips-row" id="pillar-chips-row">
-              <!-- Rendered dynamically from state.pillars -->
-            </div>
-            <div class="difficulty-row">
-              <span class="diff-label">DIFFICULTY</span>
-              <div class="diff-buttons">
-                <button class="diff-btn active" data-diff="1">EASY</button>
-                <button class="diff-btn" data-diff="1.5">MEDIUM</button>
-                <button class="diff-btn" data-diff="2">HARD</button>
-              </div>
-              <button id="btn-add-task" class="btn-secondary">+ ADD</button>
-            </div>
+            <button id="btn-add-task" class="btn-secondary">+ ADD</button>
           </div>
         </div>
-
-        <!-- Focus Stats -->
-        <div class="focus-stats" id="focus-stats">
-          <div class="focus-stats-header">
-            <span class="focus-stats-title">FOCUS STATS</span>
-            <span class="focus-stats-day">TODAY</span>
-          </div>
-          <div class="focus-stats-grid">
-            <div class="focus-stat">
-              <span id="focus-time" class="focus-stat-val">0m</span>
-              <span class="focus-stat-lbl">FOCUS TIME</span>
-            </div>
-            <div class="focus-stat">
-              <span id="focus-sessions" class="focus-stat-val">0</span>
-              <span class="focus-stat-lbl">SESSIONS</span>
-            </div>
-            <div class="focus-stat">
-              <span id="focus-xp" class="focus-stat-val">0</span>
-              <span class="focus-stat-lbl">XP EARNED</span>
-            </div>
-          </div>
-          <div class="week-chart" id="focus-week-chart">
-            <!-- 7 bars Mon–Sun rendered by JS -->
-          </div>
-        </div>
-
       </div>
 
     </div>
@@ -385,60 +326,8 @@
           <button id="btn-complete-session" class="btn-primary btn-complete">✓ COMPLETE</button>
         </div>
 
-        <!-- Mid-session plan trigger -->
-        <button id="btn-open-plan-drawer" class="btn-plan-drawer-trigger">＋ ADD TASK TO GOAL</button>
-
       </div>
-
-      <!-- ── MID-SESSION PLAN DRAWER ── -->
-      <div id="plan-drawer" class="plan-drawer hidden">
-        <div class="plan-drawer-backdrop" id="plan-drawer-backdrop"></div>
-        <div class="plan-drawer-panel" id="plan-drawer-panel">
-
-          <div class="plan-drawer-header">
-            <span class="plan-drawer-title">ADD TASK</span>
-            <span class="plan-drawer-sub">TIMER IS PAUSED</span>
-            <button id="btn-close-plan-drawer" class="plan-drawer-close">✕</button>
-          </div>
-
-          <!-- Task input -->
-          <div class="plan-drawer-field">
-            <label class="plan-drawer-label">TASK</label>
-            <input type="text" id="drawer-task-input" class="text-input plan-drawer-input"
-                   placeholder="what needs doing..." maxlength="80" />
-          </div>
-
-          <!-- Pillar chips -->
-          <div class="plan-drawer-field">
-            <label class="plan-drawer-label">PILLAR</label>
-            <div id="drawer-pillar-chips" class="pillar-chips-row drawer-chips"></div>
-          </div>
-
-          <!-- Goal selector -->
-          <div class="plan-drawer-field">
-            <label class="plan-drawer-label">GOAL <span class="plan-drawer-optional">(optional)</span></label>
-            <select id="drawer-goal-select" class="text-input plan-drawer-select">
-              <option value="">— no goal —</option>
-            </select>
-          </div>
-
-          <!-- Difficulty -->
-          <div class="plan-drawer-field">
-            <label class="plan-drawer-label">DIFFICULTY</label>
-            <div class="drawer-diff-row" id="drawer-diff-row">
-              <button class="drawer-diff-btn active" data-mult="1.0">EASY</button>
-              <button class="drawer-diff-btn" data-mult="1.5">MEDIUM</button>
-              <button class="drawer-diff-btn" data-mult="2.0">HARD</button>
-            </div>
-          </div>
-
-          <button id="btn-drawer-add-task" class="btn-primary plan-drawer-add-btn">＋ ADD TASK</button>
-
-        </div>
-      </div>
-
     </div>
-    
 
     <!-- ════════════════════════════════════════
          VIEW: BREAK
@@ -527,11 +416,7 @@
         <div class="tasks-header">
           <button id="btn-tasks-back" class="icon-btn">← BACK</button>
           <span class="tasks-title">TASK QUEUE</span>
-          <span class="tasks-sub" id="tasks-sub"></span>
         </div>
-
-        <!-- Quick add — the queue is the inventory, so you must be able to
-             put things INTO it from here. -->
         <div id="task-list" class="task-list"></div>
       </div>
     </div>
@@ -838,41 +723,6 @@
           <!-- Rendered by JS -->
         </div>
 
-        <!-- ACHIEVEMENTS SECTION -->
-        <div class="shop-section-label ach-section-label" style="margin-top:8px;">
-          <span>ACHIEVEMENTS</span>
-          <span class="ach-count" id="achievements-count">0 / 0</span>
-        </div>
-        <div class="ach-grid" id="shop-achievements-list">
-          <!-- Rendered by JS -->
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ════════════════════════════════════════
-         VIEW: AVATARS
-    ════════════════════════════════════════ -->
-    <div id="view-avatars" class="view">
-      <div class="avatars-container">
-
-        <div class="avatars-header">
-          <button id="btn-avatars-back" class="icon-btn">← BACK</button>
-          <span class="avatars-title">AVATARS</span>
-          <span class="avatars-count" id="avatars-count">0 / 10</span>
-        </div>
-
-        <div class="avatars-coins-bar">
-          <span class="avatars-coins-icon">◎</span>
-          <span id="avatars-coins-val">0</span>
-        </div>
-
-        <div class="avatars-tagline">DISCIPLINE BUILDS IDENTITY.</div>
-
-        <div id="avatars-grid" class="avatars-grid">
-          <!-- Rendered by JS -->
-        </div>
-
       </div>
     </div>
 
@@ -892,176 +742,120 @@
     <!-- ════════════════════════════════════════
          VIEW: PLAN MODE
     ════════════════════════════════════════ -->
-    <!-- ══════════════════════════════════════════
-         PLAN MODE
-         PILLARS → GOALS → TASKS → CALENDAR
-         Two surfaces only: OBJECTIVES (what/why) and CALENDAR (when).
-         ══════════════════════════════════════════ -->
     <div id="view-plan" class="view">
       <div class="plan-container">
 
         <div class="plan-header">
-          <div class="plan-header-main">
-            <div>
-              <span class="plan-title">PLAN MODE</span>
-              <span class="plan-subtitle" id="plan-subtitle">OUTCOMES · ACTIONS · COMMITMENT</span>
+          <div class="plan-header-top">
+            <div class="mode-switcher">
+              <button class="mode-btn" id="plan-mode-forge">FORGE</button>
+              <button class="mode-btn active" id="plan-mode-plan">PLAN</button>
             </div>
-            <div class="plan-tabbar" id="plan-tabbar">
-              <button class="plan-tab active" id="plan-tab-objectives">◎ OBJECTIVES</button>
-              <button class="plan-tab" id="plan-tab-calendar">▦ CALENDAR</button>
+          </div>
+          <span class="plan-title">PLAN MODE</span>
+          <span class="plan-subtitle">PILLARS · GOALS · WEEKS</span>
+
+        </div>
+
+        <!-- ── PILLARS VIEW (default) ── -->
+        <div id="plan-view-pillars">
+          <div class="plan-section-label">PILLARS OF FOCUS</div>
+          <div class="plan-pillars-list" id="plan-pillars-list"></div>
+          <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
+          <div id="pillar-form" class="pillar-form hidden">
+            <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">ICON</span>
+              <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
+            </div>
+            <div class="pillar-color-row">
+              <span class="pillar-form-label">COLOR</span>
+              <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-pillar-save" class="btn-primary">SAVE</button>
             </div>
           </div>
         </div>
 
-        <!-- ══ OBJECTIVES ══ -->
-        <div id="plan-view-objectives" class="plan-surface">
-          <div class="obj-toolbar">
-            <div class="obj-filters" id="obj-filters"></div>
-            <div class="obj-toolbar-right">
-              <label class="obj-toggle">
-                <input type="checkbox" id="obj-hide-completed" />
-                <span>HIDE COMPLETED</span>
-              </label>
-              <button class="btn-primary obj-new-btn" id="btn-new-goal">+ NEW GOAL</button>
+        <!-- ── GOALS VIEW ── -->
+        <div id="plan-view-goals" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-goals-back">← PILLARS</button>
+            <div class="plan-goals-pillar-label" id="goals-pillar-label">
+              <span id="goals-pillar-icon"></span>
+              <span id="goals-pillar-name"></span>
             </div>
           </div>
-
-          <div class="obj-count" id="obj-count"></div>
-          <div class="obj-grid" id="obj-grid"></div>
-
-          <div class="obj-pillars-strip">
-            <div class="plan-section-label">PILLARS OF FOCUS</div>
-            <div class="plan-pillars-list" id="plan-pillars-list"></div>
-            <button class="plan-add-pillar-btn" id="btn-add-pillar">+ ADD PILLAR</button>
-            <div id="pillar-form" class="pillar-form hidden">
-              <input type="text" id="pillar-name-input" class="text-input" placeholder="PILLAR NAME" maxlength="20" />
-              <div class="pillar-color-row">
-                <span class="pillar-form-label">ICON</span>
-                <div class="pillar-icon-swatches" id="pillar-icon-swatches"></div>
-              </div>
-              <div class="pillar-color-row">
-                <span class="pillar-form-label">COLOR</span>
-                <div class="pillar-color-swatches" id="pillar-color-swatches"></div>
-              </div>
-              <div class="pillar-form-btns">
-                <button id="btn-pillar-cancel" class="btn-ghost">CANCEL</button>
-                <button id="btn-pillar-save" class="btn-primary">SAVE</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ══ GOAL DETAIL ══ -->
-        <div id="plan-view-goal" class="plan-surface hidden">
-          <div class="goal-detail-head">
-            <button class="plan-back-btn" id="btn-goal-back">← OBJECTIVES</button>
-          </div>
-          <div id="goal-detail-body"></div>
-        </div>
-
-        <!-- ══ CALENDAR ══ -->
-        <div id="plan-view-calendar" class="plan-surface hidden">
-          <div class="cal-toolbar">
-            <div class="cal-nav">
-              <button class="cal-nav-btn" id="cal-prev" title="Previous">‹</button>
-              <span class="cal-range" id="cal-range">—</span>
-              <button class="cal-nav-btn" id="cal-next" title="Next">›</button>
-              <button class="cal-today-btn" id="cal-today">TODAY</button>
-            </div>
-            <div class="cal-views" id="cal-views">
-              <button class="cal-view-btn" data-view="day">DAY</button>
-              <button class="cal-view-btn active" data-view="week">WEEK</button>
-              <button class="cal-view-btn" data-view="month">MONTH</button>
-              <button class="cal-view-btn" data-view="agenda">AGENDA</button>
-            </div>
-          </div>
-
-          <div class="cal-body">
-            <div class="cal-main" id="cal-main"></div>
-
-            <!-- Unscheduled inventory — the drag source, NOT a second calendar -->
-            <aside class="cal-side" id="cal-side">
-              <div class="cal-side-head">
-                <span class="cal-side-title">UNSCHEDULED</span>
-                <span class="cal-side-sub" id="cal-side-sub"></span>
-              </div>
-              <div class="cal-side-add">
-                <input type="text" id="cal-quick-input" class="text-input"
-                       placeholder="+ add task..." maxlength="80" />
-              </div>
-              <div class="cal-unscheduled" id="cal-unscheduled"></div>
-              <div class="cal-overdue-block" id="cal-overdue-block"></div>
-            </aside>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ══ TASK DETAIL INSPECTOR ══ -->
-    <div id="task-detail" class="task-detail hidden">
-      <div class="task-detail-backdrop" id="task-detail-backdrop"></div>
-      <div class="task-detail-panel">
-        <div class="task-detail-head">
-          <span class="task-detail-title">TASK DETAIL</span>
-          <button class="task-detail-close" id="task-detail-close">✕</button>
-        </div>
-        <div class="task-detail-body" id="task-detail-body"></div>
-      </div>
-    </div>
-
-    <!-- ══ GOAL FORM MODAL ══ -->
-    <div id="goal-modal" class="forge-modal hidden">
-      <div class="forge-modal-backdrop" id="goal-modal-backdrop"></div>
-      <div class="forge-modal-panel">
-        <div class="forge-modal-head">
-          <span class="forge-modal-title" id="goal-modal-title">NEW GOAL</span>
-          <button class="forge-modal-close" id="goal-modal-close">✕</button>
-        </div>
-        <div class="forge-modal-body">
-          <label class="fld-label">TITLE</label>
-          <input type="text" id="goal-title-input" class="text-input" placeholder="e.g. EDC — Exam Preparation" maxlength="60" />
-
-          <label class="fld-label">OUTCOME <span class="fld-optional">what does done look like?</span></label>
-          <input type="text" id="goal-desc-input" class="text-input" placeholder="e.g. Pass EDC internal examination" maxlength="90" />
-
-          <div class="fld-row">
-            <div class="fld-col">
-              <label class="fld-label">PILLAR</label>
-              <select id="goal-pillar-select" class="text-input"></select>
-            </div>
-            <div class="fld-col">
-              <label class="fld-label">DEADLINE</label>
+          <div class="plan-section-label">GOALS</div>
+          <div class="plan-goals-list" id="plan-goals-list"></div>
+          <button class="plan-add-pillar-btn" id="btn-add-goal">+ ADD GOAL</button>
+          <div id="goal-form" class="goal-form hidden">
+            <input type="text" id="goal-title-input" class="text-input" placeholder="GOAL TITLE" maxlength="60" />
+            <div class="goal-form-row">
+              <span class="pillar-form-label">DEADLINE</span>
               <input type="date" id="goal-deadline-input" class="text-input date-input" />
             </div>
+            <div class="goal-form-row">
+              <span class="pillar-form-label">DURATION</span>
+              <div class="week-count-row">
+                <button class="week-count-btn" data-delta="-1">−</button>
+                <span id="goal-week-count-display">4 weeks</span>
+                <button class="week-count-btn" data-delta="1">+</button>
+              </div>
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-goal-save" class="btn-primary">SAVE</button>
+            </div>
           </div>
         </div>
-        <div class="forge-modal-foot">
-          <button id="btn-goal-delete" class="btn-ghost btn-danger">DELETE</button>
-          <div class="forge-modal-foot-right">
-            <button id="btn-goal-cancel" class="btn-ghost">CANCEL</button>
-            <button id="btn-goal-save" class="btn-primary">SAVE</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ══ SCHEDULE (PLAN TASK) MODAL ══ -->
-    <div id="schedule-modal" class="forge-modal hidden">
-      <div class="forge-modal-backdrop" id="schedule-modal-backdrop"></div>
-      <div class="forge-modal-panel">
-        <div class="forge-modal-head">
-          <span class="forge-modal-title">PLAN TASK</span>
-          <button class="forge-modal-close" id="schedule-modal-close">✕</button>
-        </div>
-        <div class="forge-modal-body" id="schedule-modal-body"></div>
-        <div class="forge-modal-foot">
-          <button id="btn-schedule-clear" class="btn-ghost">UNSCHEDULE</button>
-          <div class="forge-modal-foot-right">
-            <button id="btn-schedule-cancel" class="btn-ghost">CANCEL</button>
-            <button id="btn-schedule-save" class="btn-primary">SCHEDULE</button>
+        <!-- ── GOAL DETAIL VIEW (weeks + tasks) ── -->
+        <div id="plan-view-weeks" class="hidden">
+          <div class="plan-goals-header">
+            <button class="plan-back-btn" id="btn-weeks-back">← GOALS</button>
+            <div class="plan-goals-pillar-label" id="weeks-goal-label">
+              <span id="weeks-goal-title"></span>
+            </div>
+            <div class="goal-progress-pill" id="weeks-goal-progress"></div>
+          </div>
+          <div id="weeks-content">
+            <!-- Rendered by JS -->
           </div>
         </div>
+
+
+
+        <!-- Add/Edit Week form -->
+        <div id="week-form" class="week-form hidden">
+          <div class="week-form-inner">
+            <input type="text" id="week-name-input" class="text-input" placeholder="PERIOD NAME (e.g. C EXAM PREP)" maxlength="40" />
+            <div class="goal-form-row">
+              <span class="pillar-form-label">FROM</span>
+              <input type="date" id="week-from-input" class="text-input date-input" />
+            </div>
+            <div class="goal-form-row">
+              <span class="pillar-form-label">TO</span>
+              <input type="date" id="week-to-input" class="text-input date-input" />
+            </div>
+            <div class="pillar-form-btns">
+              <button id="btn-week-cancel" class="btn-ghost">CANCEL</button>
+              <button id="btn-week-save" class="btn-primary">SAVE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Move task modal (mobile) -->
+        <div id="move-task-modal" class="move-task-modal hidden">
+          <div class="move-task-backdrop" id="move-task-backdrop"></div>
+          <div class="move-task-sheet">
+            <div class="move-task-title">MOVE TASK TO</div>
+            <div id="move-task-options" class="move-task-options"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1070,16 +864,13 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v13.1</div>
+  <div class="version-stamp">FORGE v11.8</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
 
   <!-- Shop toast -->
   <div id="shop-toast" class="shop-toast"></div>
-
-  <!-- General toast (Minecraft-advancement style) -->
-  <div id="toast" class="toast"></div>
 
   <!-- Scripts -->
   <!-- Firebase SDKs (compat version — no build tools needed) -->
@@ -1092,11 +883,56 @@
   <script src="timer.js"></script>
   <script src="sound.js"></script>
   <script src="firebase.js"></script>
-  <script src="repository.js"></script>
-  <script src="achievements.js"></script>
-  <script src="avatars.js"></script>
-  <script src="calendar.js"></script>
-  <script src="plan.js"></script>
+  <script>
+window.__smokeErrors = [];
+window.onerror = function(m,s,l,c){ window.__smokeErrors.push(m + ' @' + (l||'?') + ':' + (c||'?')); };
+window.addEventListener('unhandledrejection', function(e){ window.__smokeErrors.push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
+try { localStorage.setItem('forge_state', "{\"user\":{\"name\":\"TARA\",\"xp\":4593,\"level\":4,\"totalSessions\":12,\"rank\":\"APPRENTICE\",\"coins\":85,\"unlockedThemes\":[\"forge\",\"venom\",\"anime\"],\"activeTheme\":\"anime\",\"streak\":{\"current\":3,\"longest\":6,\"lastActiveDate\":\"2026-08-10\",\"freezesAvailable\":0}},\"tasks\":[{\"id\":\"t1\",\"text\":\"Revise chapter 5: Integration\",\"tag\":\"academics\",\"goalId\":\"g1\",\"weekId\":null,\"completed\":false,\"xpMultiplier\":2,\"createdAt\":\"2026-08-10T10:00:00Z\",\"completedAt\":null}],\"sessions\":[],\"today\":{\"date\":\"2026-08-11\",\"sessionsCompleted\":0},\"settings\":{\"workMinutes\":50,\"breakMinutes\":10,\"soundEnabled\":false,\"summaryDay\":0,\"lastSummaryWeek\":null},\"pillars\":[{\"id\":\"academics\",\"name\":\"ACADEMICS\",\"color\":\"#4caf7d\",\"icon\":\"📚\"},{\"id\":\"gamedev\",\"name\":\"GAMEDEV\",\"color\":\"#7b9de8\",\"icon\":\"🎮\"},{\"id\":\"other\",\"name\":\"OTHER\",\"color\":\"#888880\",\"icon\":\"◎\"}],\"goals\":[{\"id\":\"g1\",\"pillarId\":\"academics\",\"title\":\"Pass Calculus Finals\",\"deadline\":null,\"weekCount\":4,\"createdAt\":\"2026-07-01T00:00:00Z\",\"status\":\"active\"}],\"weeks\":[]}"); } catch(e){ window.__smokeErrors.push('seed: ' + e.message); }
+window.FB = window.FB || {};
+window.FB.init = function(cb){ setTimeout(function(){ cb(null); }, 50); };
+window.FB.loadState = function(){ return Promise.resolve({ ok:true, state:null }); };
+window.FB.saveState = function(){ return Promise.resolve({ ok:true }); };
+window.FB.saveSession = function(){ return Promise.resolve({ ok:true }); };
+window.FB.getCurrentUser = function(){ return null; };
+window.FB.isSignedIn = function(){ return false; };
+window.FB.signInWithGoogle = function(){ return Promise.resolve({ ok:false }); };
+window.FB.signOut = function(){ return Promise.resolve({ ok:true }); };
+window.FB.deleteUserData = function(){ return Promise.resolve({ ok:true }); };
+
+var R = [];
+var snap = function(label){ R.push(label + ' :: ' + [
+  'view=' + (document.querySelector('.view.active')||{}).id,
+  'task=' + ((document.getElementById('reward-task-name')||{}).textContent || '-'),
+  'xp=' + ((document.getElementById('reward-xp')||{}).textContent || '-'),
+  'bonus=' + ((document.getElementById('reward-bonus-label')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN'),
+  'coins=' + ((document.getElementById('reward-coins-earned')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN+' + (document.getElementById('reward-coins')||{}).textContent),
+  'stats=' + ((document.getElementById('reward-stats')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN'),
+  'lvlup=' + ((document.getElementById('levelup-banner')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN [' + (document.getElementById('levelup-head')||{}).textContent + ' ' + (document.getElementById('levelup-num')||{}).textContent + ' ' + (document.getElementById('levelup-rankline')||{}).textContent + ']'),
+  'decide=' + ((document.getElementById('task-decision')||{}).classList.contains('hidden') ? 'hidden' : 'SHOWN' + ((document.getElementById('btn-task-done')||{}).disabled ? '(disabled)' : '(enabled)'))
+].join('  ')); };
+
+// drive the session
+setTimeout(function(){ var b=document.getElementById('btn-offline-enter'); if(b)b.click(); else R.push('ERR offline btn'); }, 800);
+setTimeout(function(){ var b=document.getElementById('btn-start-session'); if(b)b.click(); else R.push('ERR start btn'); }, 1200);
+setTimeout(function(){ document.getElementById('btn-intention-confirm').click(); }, 1600); // LOCK IN
+setTimeout(function(){
+  // force the 15% focus bonus + complete the session
+  window.__oldRandom = Math.random;
+  Math.random = function(){ return 0.05; };
+  document.getElementById('btn-complete-session').click();
+  Math.random = window.__oldRandom;
+}, 2600);
+setTimeout(function(){ snap('T0'); }, 2850);   // just after reward shows (Beat 0)
+setTimeout(function(){ snap('T1'); }, 3400);   // count-up mid (Beat 1)
+setTimeout(function(){ snap('T2'); }, 4300);   // coins/stats (Beat 2)
+setTimeout(function(){ snap('T3'); }, 5000);   // level-up (Beat 3)
+setTimeout(function(){ snap('T4'); }, 7000);   // decision (Beat 4)
+setTimeout(function(){
+  var p = document.createElement('pre'); p.id = 'smoke-report';
+  p.textContent = R.join('\n') + '\nERRORS: ' + (window.__smokeErrors.length ? window.__smokeErrors.join(' || ') : 'NONE');
+  document.body.appendChild(p);
+}, 7100);
+</script>
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

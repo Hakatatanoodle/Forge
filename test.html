@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FORGE Tests</title>
+<style>
+body { background:#0a0a0a; color:#e8e4dc; font-family: monospace; padding:20px; }
+.pass { color:#4caf7d; }
+.fail { color:#c0392b; }
+</style>
+</head>
+<body>
+<h1>FORGE Tests — open console</h1>
+<pre id="log"></pre>
+<script src="storage.js"></script>
+<script src="xp.js"></script>
+<script src="timer.js"></script>
+<script src="tests.js"></script>
+<script>
+  const logEl = document.getElementById('log');
+  const origLog = console.log;
+  const origErr = console.error;
+  console.log = (...a) => { origLog(...a); logEl.textContent += a.join(' ') + '\n'; };
+  console.error = (...a) => { origErr(...a); logEl.textContent += 'ERR: ' + a.join(' ') + '\n'; };
+  try { FORGE_TESTS.run(); logEl.textContent += '\nAll green ✅\n'; } catch(e){ logEl.textContent += '\nFAIL: ' + e.message + '\n' + e.stack; }
+</script>
+</body>
+</html>

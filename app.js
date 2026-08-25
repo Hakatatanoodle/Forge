@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════════════
 // app.js — Main application controller
-// Owns: state, view routing, UI updates, event handling.
-// Depends on: storage.js, xp.js, timer.js
+// Owns: view routing, UI updates, event handling.
+// Depends on: storage.js, xp.js, timer.js, firebase.js, repository.js
+// All state persistence goes through Repository — see repository.js
+// for why (it closes the exact class of bug where the cloud and local
+// load paths used to run different migration logic).
 // ═══════════════════════════════════════════════════════
 
 (() => {
@@ -39,6 +42,7 @@
     summary:    $('view-summary'),
     shop:       $('view-shop'),
     plan:       $('view-plan'),
+    avatars:    $('view-avatars'),
   };
 
   // ══════════════════════════════════════════
@@ -47,6 +51,8 @@
   function showView(name) {
     Object.values(views).forEach(v => v.classList.remove('active'));
     if (views[name]) views[name].classList.add('active');
+    // Hide the rail on chrome-free, focused moments
+    document.body.classList.toggle('no-rail', ['onboarding','session','break','reward','summary'].indexOf(name) !== -1);
   }
 
   // ══════════════════════════════════════════
@@ -54,11 +60,28 @@
   // ══════════════════════════════════════════
   function init() {
     bindEvents();
-    // NOTE: checkDayReset() is NOT called here — it runs inside
-    // onAuthStateChanged AFTER cloud state loads. Calling it here
-    // would reset today's counter against local state, which then
-    // gets overwritten by Firestore, throwing the reset away.
-    FB.init(onAuthStateChanged);
+    // Fallback offline timer — if Firebase doesn't respond in 3s, show login with offline option
+    const fbTimeout = setTimeout(() => {
+      if (!views.onboarding.classList.contains('active') || $('btn-google-signin').style.display !== 'none') return;
+      // Still in loading state, show buttons
+      showAuthLoading(false);
+    }, 3000);
+
+    // Wrap onAuthStateChanged to clear timeout
+    const origHandler = onAuthStateChanged;
+    window._clearFbTimeout = () => clearTimeout(fbTimeout);
+
+    FB.init((user) => {
+      clearTimeout(fbTimeout);
+      origHandler(user);
+    });
+
+    // Also render pillar chips for quick-add if state already available locally (offline first paint)
+    try {
+      if (state.pillars && state.pillars.length) {
+        setTimeout(() => { if (typeof renderPillarChips === 'function') renderPillarChips(); }, 100);
+      }
+    } catch(e) {}
   }
 
   // ── Called by Firebase when auth state is known ──
@@ -72,17 +95,18 @@
 
     showAuthLoading(true);
 
-    const result = await FB.loadState();
+    const { state: loaded, source } = await Repository.loadState({ signedIn: true });
+    state = loaded;
 
-    if (result.ok && result.state) {
-      // Returning user — load their cloud data
-      const base = Storage.defaultState();
-      state = Storage.deepMerge(base, result.state);
+    if (source === 'cloud') {
+      // Returning user — their cloud data is now loaded and migrated.
       // Clean up legacy sprints data (removed in v11)
       if (state.sprints) delete state.sprints;
       checkDayReset();
     } else {
-      // First time signing in — set name from Google profile
+      // First time signing in with this Google account (no cloud doc yet)
+      // — name them from their Google profile if we don't already have a
+      // name (e.g. from prior local guest use).
       if (!state.user.name) {
         state.user.name = user.displayName
           ? user.displayName.split(' ')[0].toUpperCase()
@@ -99,6 +123,7 @@
     // Single save after all init mutations — awaited to prevent race conditions
     await saveState();
     applyTheme(state.user.activeTheme || 'forge');
+    applyRailCollapsed();
     showAuthLoading(false);
 
     // Check if today is summary day and this week hasn't been shown
@@ -113,24 +138,82 @@
     }
   }
 
+  let _isOfflineMode = false;
   function showAuthLoading(show) {
     const loading = $('auth-loading');
     const btn     = $('btn-google-signin');
+    const offBtn  = $('btn-offline-enter');
+    const skipBtn = $('btn-skip-auth');
+    const offBlock = $('offline-block');
+    const nameRow = $('input-offline-name')?.parentElement?.parentElement || offBlock;
     if (!loading || !btn) return;
-    if (show) {
+    if (show && !_isOfflineMode) {
       loading.classList.remove('hidden');
       btn.style.display = 'none';
+      if (offBlock) offBlock.style.display = 'none';
+      if (offBtn) offBtn.style.display = 'none';
+      if (skipBtn) skipBtn.style.display = 'none';
     } else {
       loading.classList.add('hidden');
       btn.style.display = '';
       btn.disabled = false;
+      if (offBlock) offBlock.style.display = '';
+      if (offBtn) offBtn.style.display = '';
+      if (skipBtn) skipBtn.style.display = '';
     }
   }
 
-  // ── Save locally AND to cloud ──
+  async function enterOfflineMode(nameOverride) {
+    _isOfflineMode = true;
+    // load local state, ensure offline
+    const { state: loaded } = await Repository.loadState({ signedIn: false });
+    state = loaded;
+    // if no name, allow override
+    if (nameOverride) state.user.name = nameOverride.toUpperCase();
+    if (!state.user.name) state.user.name = 'OPERATIVE';
+    if (!state.user.rank) state.user.rank = XP.getRank(state.user.level || 1);
+    checkDayReset();
+    // migration
+    const TAG_MIGRATE = { finals: 'academics', game: 'gamedev', urgent: 'academics' };
+    state.tasks.forEach(t => { if (TAG_MIGRATE[t.tag]) t.tag = TAG_MIGRATE[t.tag]; });
+    if (state.sprints) delete state.sprints;
+    await saveState();
+    Sound.setEnabled(state.settings.soundEnabled !== false);
+    applyTheme(state.user.activeTheme || 'forge');
+    applyRailCollapsed();
+    showAuthLoading(false);
+    if (_shouldShowSummary()) {
+      _markSummaryShown();
+      renderWeeklySummary();
+      showView('summary');
+    } else {
+      showView('dashboard');
+      renderDashboard();
+    }
+  }
+
+  // ── Save locally AND to cloud (via Repository) ──
   async function saveState() {
-    Storage.save(state);
-    await FB.saveState(state);
+    await Repository.saveState(state, { signedIn: FB.isSignedIn() });
+  }
+
+  // ── COLLAPSIBLE RAIL (desktop sidebar) ──
+  // Mirror state.settings.railCollapsed onto the DOM.
+  function applyRailCollapsed() {
+    const rail = $('rail');
+    const btn  = $('btn-toggle-rail');
+    if (!rail || !btn) return;
+    const collapsed = !!(state.settings && state.settings.railCollapsed);
+    rail.classList.toggle('rail-collapsed', collapsed);
+    btn.textContent = collapsed ? '▶' : '◀';
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  function toggleRail() {
+    state.settings.railCollapsed = !(state.settings && state.settings.railCollapsed);
+    applyRailCollapsed();
+    Sound.click();
+    saveState();
   }
   function checkDayReset() {
     const today = Storage.todayStr();
@@ -143,6 +226,16 @@
         state.user.streak.lastActiveDate = today;
       }
     }
+
+    // ── SELF-HEALING STREAK RECOMPUTE ──
+    // Rebuild current/longest from the real session log rather than trust
+    // the incrementally-updated counter, which can silently drift (old
+    // bugs, timezone edge cases, manual edits). Freeze BALANCE is left
+    // untouched — only the derived streak numbers are corrected.
+    const healed = XP.recalcStreak(state.sessions, state.user.streak.freezesAvailable || 0);
+    state.user.streak.current        = healed.current;
+    state.user.streak.longest        = healed.longest;
+    state.user.streak.lastActiveDate = healed.lastActiveDate || state.user.streak.lastActiveDate;
 
     if (state.today.date !== today) {
       state.today = { date: today, sessionsCompleted: 0 };
@@ -158,14 +251,25 @@
   function renderDashboard() {
     const { user, tasks, today } = state;
 
-    // User info
+    // User info — "LVL 7 · SPECIALIST" identity line (theme-flavored rank)
     const activeTheme = state.user.activeTheme || 'forge';
     const themeRanks = THEME_RANKS[activeTheme];
-    $('display-rank').textContent = (themeRanks && themeRanks[user.rank])
-      ? themeRanks[user.rank]
-      : user.rank;
+    const rankTitle = (themeRanks && themeRanks[user.rank]) ? themeRanks[user.rank] : user.rank;
+    $('display-rank').textContent = `LVL ${user.level} · ${rankTitle}`;
     $('display-name').textContent  = user.name.toUpperCase();
     $('display-level').textContent = user.level;
+
+    // Avatar — active avatar image, falls back to initials monogram if
+    // the image file doesn't exist yet (see avatars.js header comment).
+    renderActiveAvatar();
+
+    // Greeting + date + quote
+    const greetEl = $('dash-greeting');
+    if (greetEl) greetEl.textContent = `${_greeting()}, ${user.name.toUpperCase()}.`;
+    const dateEl = $('dash-date');
+    if (dateEl) dateEl.textContent = _dateLine();
+    const quoteEl = $('quote-text');
+    if (quoteEl) quoteEl.textContent = _quoteOfDay();
 
     // XP bar
     const xpNeeded = XP.xpForLevel(user.level);
@@ -205,18 +309,165 @@
     // Coins
     $('display-coins').textContent = user.coins || 0;
 
-    // Stats
-    $('stat-sessions').textContent       = user.totalSessions;
-    $('stat-today').textContent          = today.sessionsCompleted;
-    $('stat-streak-longest').textContent = user.streak.longest;
+    // Rank progress — "⚡ X XP to NEXT RANK"
+    const rankLine = $('rank-progress-line');
+    if (rankLine) {
+      const next = getNextRankInfo(user);
+      rankLine.textContent = next
+        ? `⚡ ${next.xpNeeded} XP to ${next.rankTitle}`
+        : '★ MAX RANK ACHIEVED ★';
+    }
 
     // Current task (first incomplete, prioritizing urgent > finals > game > other)
     const nextTask = getNextTask(tasks);
     renderCurrentTask(nextTask);
+
+    // Today's Quests
+    renderQuestList();
+
+    // Focus stats panel (right sidebar)
+    _renderFocusStats();
   }
 
-  // ── Priority sort: urgent > finals > game > other ──
-  // Pillar priority — derived from state.pillars order
+  // ── Rank → next rank math (drives the hero "XP to next rank" line) ──
+  function getNextRankInfo(user) {
+    const ranks = XP.RANKS || [];
+    const next = ranks.find(r => r.minLevel > user.level);
+    if (!next) return null; // already max rank
+    let xpNeeded = 0;
+    let lvl = user.level;
+    while (lvl < next.minLevel) {
+      xpNeeded += XP.xpForLevel(lvl);
+      lvl++;
+    }
+    xpNeeded -= (user.xp || 0);
+    return { rankTitle: next.title, xpNeeded: Math.max(xpNeeded, 0) };
+  }
+
+  // ── Greeting / date / quote (dashboard center column) ──
+  function _greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'GOOD MORNING';
+    if (h < 18) return 'GOOD AFTERNOON';
+    return 'GOOD EVENING';
+  }
+
+  function _dateLine() {
+    return new Date().toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric'
+    }).toUpperCase();
+  }
+
+  const QUOTES = [
+    'Discipline today, freedom tomorrow.',
+    'Lock in. Focus. Get stronger.',
+    'The grind is the reward.',
+    'Small steps, forged daily.',
+    'Future you is watching. Do not disappoint.',
+    'One session at a time. One level at a time.'
+  ];
+
+  function _quoteOfDay() {
+    const d = new Date();
+    const start = new Date(d.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((d - start) / 86400000);
+    return QUOTES[dayOfYear % QUOTES.length];
+  }
+
+  // ── Objective progress bar on the hero ──
+  // If the task belongs to a goal → goal completion. Otherwise → today's quests.
+  function _objectiveProgress(task) {
+    if (!task) return null;
+    if (task.goalId) {
+      const gTasks = (state.tasks || []).filter(t => t.goalId === task.goalId);
+      const done = gTasks.filter(t => t.completed).length;
+      const total = gTasks.length;
+      if (!total) return { pct: 0, label: '0/0' };
+      return { pct: Math.min(100, Math.round(done / total * 100)), label: `${done}/${total}` };
+    }
+    const all = state.tasks || [];
+    const done = all.filter(t => t.completed).length;
+    const total = all.length;
+    if (!total) return null;
+    return { pct: Math.min(100, Math.round(done / total * 100)), label: `${done}/${total}` };
+  }
+
+  // ── Estimated XP for one session at current settings/streak/level ──
+  function _estimateXP(task) {
+    if (!task) return 0;
+    const mult  = task.xpMultiplier || 1;
+    const mins  = state.settings.workMinutes || 50;
+    const streak = (state.user.streak && state.user.streak.current) || 0;
+    return XP.calculateSessionXP(mult, streak, mins, state.user.level || 1).total;
+  }
+
+  // ── Focus stats (right sidebar) — today + weekly XP chart ──
+  function _inCurrentWeek(date) {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const mon = new Date(now);
+    const dow = now.getDay(); // 0=Sun
+    mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    mon.setHours(0, 0, 0, 0);
+    const day = new Date(date); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((day - mon) / 86400000);
+    return diff >= 0 && diff <= 6;
+  }
+
+  function _computeFocusStats() {
+    const todayStr = Storage.todayStr();
+    const stats = { focusMins: 0, sessions: 0, xpToday: 0, week: [0, 0, 0, 0, 0, 0, 0] };
+    for (const s of state.sessions) {
+      if (!s.startTime) continue;
+      const d  = new Date(s.startTime);
+      const ds = _localDateStr(d);
+      if (ds === todayStr) {
+        stats.sessions++;
+        stats.xpToday += s.xpEarned || 0;
+        if (s.endTime) {
+          stats.focusMins += Math.max(0, Math.round((new Date(s.endTime) - d) / 60000));
+        }
+      }
+      if (_inCurrentWeek(d)) {
+        stats.week[d.getDay()] += s.xpEarned || 0;
+      }
+    }
+    return stats;
+  }
+
+  function _renderFocusStats() {
+    const panel = $('focus-stats');
+    if (!panel) return;
+    const stats = _computeFocusStats();
+
+    const mins = stats.focusMins;
+    const timeEl = $('focus-time');
+    if (timeEl) timeEl.textContent = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+    const sEl = $('focus-sessions');
+    if (sEl) sEl.textContent = stats.sessions;
+    const xEl = $('focus-xp');
+    if (xEl) xEl.textContent = stats.xpToday;
+
+    const chart = $('focus-week-chart');
+    if (!chart) return;
+    const max      = Math.max.apply(null, stats.week.concat([1]));
+    const MON_FIRST = [1, 2, 3, 4, 5, 6, 0]; // getDay() order → Mon-first display
+    const LABELS   = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const todayDow = new Date().getDay();
+    chart.innerHTML = MON_FIRST.map((dayIdx, i) => {
+      const xp  = stats.week[dayIdx];
+      const pct = Math.max(xp > 0 ? 6 : 2, Math.round(xp / max * 100));
+      return `
+        <div class="week-bar-col ${dayIdx === todayDow ? 'is-today' : ''}">
+          <div class="week-bar ${xp > 0 ? 'has-xp' : ''}" style="height:${pct}%"></div>
+          <span class="week-bar-label">${LABELS[i]}</span>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Pillar picker state — moved up for outer renderPillarChips access ──
+  let _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
+
+  // ── Priority sort based on pillar order ──
   function getPillarPriority(pillarId) {
     const pillars = state.pillars || [];
     const idx = pillars.findIndex(p => p.id === pillarId);
@@ -239,45 +490,162 @@
       display.innerHTML = `<span class="task-empty-state">No tasks queued.<br/>Add one below.</span>`;
       startBtn.disabled = true;
       sessionContext.taskId = null;
+      const progRow = $('objective-progress-row');
+      if (progRow) progRow.classList.add('hidden');
+      const xpEst = $('objective-xp-est');
+      if (xpEst) xpEst.textContent = '';
       return;
     }
 
     const pillar = getPillarById(task.tag);
+    const starCount = { 1: 1, 1.5: 2, 2: 3 }[task.xpMultiplier || 1] || 1;
+    const stars     = '<span class="diff-stars">' + '★'.repeat(starCount) + '</span>';
+    const goal      = task.goalId ? (getGoalById(task.goalId)?.title || '') : '';
     display.innerHTML = `
       <div class="task-display-content">
         <span class="task-tag-badge" style="background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44">${pillar.icon} ${pillar.name}</span>
         ${escHtml(task.text)}
+        ${goal ? `<span class="task-goal-crumb">▸ ${escHtml(goal)}</span>` : ''}
+        ${stars}
       </div>`;
 
     startBtn.disabled = false;
     sessionContext.taskId = task.id;
     sessionContext.difficultyMultiplier = task.xpMultiplier || 1.0;
+
+    // Objective progress bar
+    const prog = _objectiveProgress(task);
+    const progRow  = $('objective-progress-row');
+    const progFill = $('objective-progress-fill');
+    const progLbl  = $('objective-progress-label');
+    if (prog && progRow) {
+      progRow.classList.remove('hidden');
+      if (progFill) progFill.style.width = prog.pct + '%';
+      if (progLbl)  progLbl.textContent = `${prog.pct}% · ${prog.label}`;
+    } else if (progRow) {
+      progRow.classList.add('hidden');
+    }
+
+    // Estimated XP for a session on this task
+    const xpEst = $('objective-xp-est');
+    if (xpEst) xpEst.textContent = `⚡ EST +${_estimateXP(task)} XP`;
+
+    // highlight the selected quest (if the list is rendered)
+    const questList = $('quest-list');
+    if (questList) {
+      questList.querySelectorAll('.quest-item').forEach(q => {
+        q.classList.toggle('selected', q.dataset.taskId === task.id);
+      });
+    }
+  }
+
+  // ── Today's Quests — pending task queue with tap-to-set-objective ──
+  function renderQuestList() {
+    const list = $('quest-list');
+    if (!list) return;
+    const tasks   = state.tasks || [];
+    const pending = tasks.filter(t => !t.completed);
+    const done    = tasks.length - pending.length;
+
+    // header progress "2/5 done"
+    const progress = $('quest-progress');
+    if (progress) progress.textContent = (done > 0) ? `${done}/${tasks.length} done` : '';
+
+    const currentId = sessionContext.taskId;
+
+    // ── Empty states ──
+    if (!tasks.length) {
+      const hasGoals = (state.goals || []).length > 0;
+      if (hasGoals) {
+        list.innerHTML = `
+          <div class="quest-empty">
+            <span class="quest-empty-text">NO QUESTS YET</span>
+            <span class="quest-empty-sub">Tap + ADD QUEST to forge one.</span>
+          </div>`;
+      } else {
+        // first-run funnel → PLAN mode
+        list.innerHTML = `
+          <div class="quest-empty">
+            <span class="quest-empty-text">FORGE YOUR FIRST GOAL</span>
+            <span class="quest-empty-sub">Goals → Tasks → Calendar</span>
+            <button id="btn-empty-to-plan" class="btn-primary btn-empty-cta">OPEN PLAN MODE ▶</button>
+          </div>`;
+        const cta = $('btn-empty-to-plan');
+        if (cta) cta.addEventListener('click', () => {
+          showView('plan');
+          renderPlanMode();
+          openPlanTab('objectives');
+        });
+      }
+      return;
+    }
+
+    // ── Quest rows — pending first, done struck-through at the bottom ──
+    const doneTasks = tasks.filter(t => t.completed);
+    list.innerHTML = [...pending, ...doneTasks].map(t => {
+      const pillar    = getPillarById(t.tag);
+      const starCount = { 1: 1, 1.5: 2, 2: 3 }[t.xpMultiplier || 1] || 1;
+      const stars     = '★'.repeat(starCount);
+      const goal      = t.goalId ? (getGoalById(t.goalId)?.title || '') : '';
+      return `
+        <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''}" data-task-id="${t.id}">
+          <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
+          <div class="quest-main">
+            <div class="quest-row-top">
+              <span class="quest-text">${escHtml(t.text)}</span>
+              <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>
+            </div>
+            ${goal ? `
+            <div class="quest-row-bottom">
+              <span class="quest-goal">▸ ${escHtml(goal)}</span>
+              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+            </div>` : `
+            <div class="quest-row-bottom quest-row-bottom-nogoal">
+              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+            </div>`}
+          </div>
+        </button>`;
+    }).join('');
+
+    list.querySelectorAll('.quest-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const t = state.tasks.find(x => x.id === item.dataset.taskId);
+        if (!t || t.completed) return;
+        renderCurrentTask(t); // also re-highlights + sets sessionContext
+        Sound.click();
+        flashElement(item, 'Objective set');
+      });
+    });
   }
 
   // ══════════════════════════════════════════
   // TASK MANAGEMENT
   // ══════════════════════════════════════════
   let selectedDifficulty = 1.0;
-  let _selectedPillar = 'other'; // set properly after state loads
+  // _selectedPillar already declared above
 
   function addTask() {
     const input = $('input-task');
     const text  = input.value.trim();
-    if (!text) return;
+    if (!text) {
+      showToast('TYPE A QUEST FIRST', 'error');
+      input.focus();
+      return;
+    }
 
     const tag = _selectedPillar || 'other';
 
-    const task = {
+    // Quick-add lands in the UNSCHEDULED inventory. It is NOT auto-committed
+    // to a time — the user decides "when" deliberately, on the calendar.
+    const task = Object.assign(Storage.taskDefaults(), {
       id:             Storage.uuid(),
       text,
       tag,
-      goalId:         null,
-      weekId:         null,
       completed:      false,
       xpMultiplier:   selectedDifficulty,
       createdAt:      new Date().toISOString(),
       completedAt:    null
-    };
+    });
 
     state.tasks.push(task);
     saveState();
@@ -285,7 +653,7 @@
     input.value = '';
     renderDashboard();
     Sound.taskAdded();
-    flashElement($('btn-add-task'), 'Task added!');
+    showToast('QUEST ADDED ✓', 'success');
   }
 
   function deleteTask(id) {
@@ -293,6 +661,7 @@
     saveState();
     renderTaskList();
     renderDashboard();
+    _refreshPlanPanels();
   }
 
   function markTaskComplete(id) {
@@ -300,18 +669,109 @@
     if (task) {
       task.completed   = true;
       task.completedAt = new Date().toISOString();
+      checkAchievements();
       saveState();
     }
   }
 
-  function getPillarById(id) {
-    return (state.pillars || []).find(p => p.id === id) || { name: id.toUpperCase(), color: '#888880', icon: '◎' };
+  // ══════════════════════════════════════════
+  // ACHIEVEMENTS
+  // ══════════════════════════════════════════
+  // Call after any state change that could move achievement progress
+  // (session complete, task complete, goal complete). Recomputes every
+  // family from scratch (see achievements.js), awards coins for any
+  // newly-crossed tier exactly once, and shows a toast per unlock.
+  // Does NOT call saveState() itself — the caller already does, right
+  // after, so this is covered by that same save.
+  function checkAchievements() {
+    const unlocked = Achievements.detectNewUnlocks(state);
+
+    unlocked.forEach(u => {
+      state.user.coins = (state.user.coins || 0) + u.coinReward;
+    });
+
+    // Show one toast per achievement unlock, staggered slightly so
+    // multiple simultaneous unlocks (rare, but possible on a big
+    // catch-up session) don't all flash and vanish at once.
+    unlocked.forEach((u, i) => {
+      setTimeout(() => {
+        showToast(`🏆 ${u.name.toUpperCase()} — ${u.tier.toUpperCase()} +${u.coinReward}◎`, 'success', 3200);
+      }, i * 1400);
+    });
+
+    if (unlocked.length) Sound.levelUp();
+
+    // Avatar auto-unlocks are tied to achievement GOLD tiers. Checked
+    // unconditionally (not just when `unlocked.length` above is > 0) so
+    // that a user who already had Gold on a family BEFORE the avatar
+    // system existed still gets the avatar granted the next time this
+    // runs, instead of waiting for some future unrelated tier crossing.
+    if (window.Avatars) {
+      const avatarUnlocks = Avatars.checkAutoUnlocks(state);
+      avatarUnlocks.forEach((av, i) => {
+        setTimeout(() => {
+          showToast(`👤 AVATAR UNLOCKED — ${av.name}`, 'success', 3200);
+        }, (unlocked.length + i) * 1400);
+      });
+      if (avatarUnlocks.length) Sound.levelUp();
+    }
   }
 
-  function renderTaskList() {
+  // Re-render Plan Mode whenever tasks change elsewhere (queue, dashboard,
+  // mid-session drawer). Plan Mode owns its own repaint logic.
+  function _refreshPlanPanels() {
+    if (window.Plan) Plan.refresh();
+  }
+
+  function getPillarById(id) {
+    return (state.pillars || []).find(p => p.id === id) || { name: (id||'OTHER').toUpperCase(), color: '#888880', icon: '◎' };
+  }
+
+  function getGoalById(id) {
+    return (state.goals || []).find(g => g.id === id) || null;
+  }
+
+  // Pillar chips — kept at outer scope so Plan Mode can call it
+  function renderPillarChips() {
+    const row = $('pillar-chips-row');
+    if (!row) return;
+    const pillars = state.pillars || [];
+    // Ensure selected pillar still exists
+    const exists = pillars.some(p => p.id === _selectedPillar);
+    if (!exists) _selectedPillar = (pillars[0] && pillars[0].id) || 'other';
+    const selected = _selectedPillar;
+    row.innerHTML = pillars.map(p => `
+      <div class="pillar-chip ${p.id === selected ? 'selected' : ''}"
+           data-pillar="${p.id}"
+           style="--pillar-color:${p.color}">
+        <span class="pillar-chip-dot"></span>
+        ${p.name}
+      </div>`).join('');
+    row.querySelectorAll('.pillar-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        _selectedPillar = chip.dataset.pillar;
+        renderPillarChips();
+      });
+    });
+  }
+
+  function renderTaskList(target) {
     // completed tasks go to bottom
-    const list = $('task-list');
+    const list = $(target || 'task-list');
     const tasks = state.tasks;
+
+    // "12 TASKS · 5 UNSCHEDULED · ~6h 15m"
+    const sub = $('tasks-sub');
+    if (sub) {
+      const pending = tasks.filter(t => !t.completed);
+      const unsched = pending.filter(t => !t.scheduledStart);
+      const mins = unsched.reduce((a, t) => a + (t.estimatedMinutes || 0), 0);
+      const h = Math.floor(mins / 60), m = mins % 60;
+      const pretty = h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+      sub.textContent = pending.length
+        ? `${pending.length} OPEN · ${unsched.length} UNSCHEDULED${mins ? ' · ~' + pretty : ''}`
+        : '';
+    }
 
     if (!tasks.length) {
       list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-family:var(--font-mono);font-size:12px;letter-spacing:2px;">NO TASKS YET</div>`;
@@ -360,7 +820,7 @@
       check.addEventListener('click', e => {
         e.stopPropagation();
         markTaskComplete(check.dataset.complete);
-        renderTaskList();
+        renderTaskList(target);
         renderDashboard();
         Sound.xpGain();
       });
@@ -389,7 +849,8 @@
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
     if (!task) return;
 
-    $('input-intention').value = '';
+    // Pre-fill the declaration with the task — sharpen it, don't retype it
+    $('input-intention').value = task.text;
 
     // Always reset sessionMinutes so previous session's pick doesn't bleed in
     const currentMins = state.settings.workMinutes;
@@ -411,9 +872,8 @@
     renderIntentionTask();
     closeSwitcher();
 
-    // Reset and render goal selector
-    sessionContext.goalId = null;
-    _renderGoalSelector(task ? task.tag : null);
+    // The goal comes from the task — never re-picked on this screen
+    sessionContext.goalId = task.goalId || null;
 
     showView('intention');
     setTimeout(() => $('input-intention').focus(), 300);
@@ -430,6 +890,14 @@
     badge.className   = 'task-tag-badge';
     badge.style.cssText = `background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44`;
     $('intention-task-name').textContent = task.text;
+
+    // Goal breadcrumb — context, not a selector
+    const crumb = $('intention-goal-crumb');
+    if (crumb) {
+      const goal = task.goalId ? getGoalById(task.goalId) : null;
+      crumb.textContent   = goal ? `▸ ${goal.title}` : '';
+      crumb.style.display = goal ? '' : 'none';
+    }
   }
 
   // ── Open/close the task switcher dropdown ──
@@ -442,12 +910,15 @@
     } else {
       switcher.innerHTML = incompleteTasks
         .sort((a, b) => getPillarPriority(a.tag) - getPillarPriority(b.tag))
-        .map(t => `
+        .map(t => {
+          const pl = getPillarById(t.tag);
+          return `
           <div class="task-switcher-item ${t.id === sessionContext.taskId ? 'is-selected' : ''}"
                data-task-id="${t.id}">
-            <span class="task-tag-badge ${t.tag}">${t.tag.toUpperCase()}</span>
+            <span class="task-tag-badge" style="background:${pl.color}22;color:${pl.color};border:1px solid ${pl.color}44">${pl.icon} ${pl.name}</span>
             ${escHtml(t.text)}
-          </div>`)
+          </div>`;
+        })
         .join('');
 
       // Tap to select
@@ -473,19 +944,43 @@
     $('btn-switch-task').classList.remove('open');
   }
 
-  // Step 2: Lock in intention → start session
+  // Step 2: Lock in intention → "✓ INTENTION LOCKED" stamp → session
   function startSession() {
-    const intention = $('input-intention').value.trim();
-    if (!intention) {
+    const raw = $('input-intention').value.trim();
+    if (!raw) {
       $('input-intention').focus();
-      $('input-intention').placeholder = 'This is required. Be specific.';
+      $('input-intention').placeholder = 'required — be specific';
       return;
     }
 
-    sessionContext.intention  = intention;
+    // Store the full declaration — "I will" is locked, so echo it
+    const cleaned = raw.replace(/^i\s+will\s*/i, '');
+    sessionContext.intention  = 'I will ' + cleaned;
     sessionContext.startTime  = new Date().toISOString();
-    // goalId already set by _renderGoalSelector selection
+    // goalId set in openIntention (from the task)
 
+    // The commitment stamp — one beat, then straight into the session
+    const confirm = $('btn-intention-confirm');
+    const cancel  = $('btn-intention-cancel');
+    const stamp   = $('intention-locked-stamp');
+    stamp.classList.remove('hidden');
+    confirm.disabled = true;
+    cancel.disabled  = true;
+    Sound.sessionStart();
+
+    setTimeout(() => {
+      stamp.classList.add('hidden');
+      confirm.disabled = false;
+      cancel.disabled  = false;
+      // Guard: if the user hit back during the stamp, don't launch
+      if (document.querySelector('.view.active') !== $('view-intention')) return;
+      launchSession();
+    }, 500);
+  }
+
+  // Step 2b: flip to the focus screen and start the wall-clock timer
+  function launchSession() {
+    const intention = sessionContext.intention;
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
 
     $('session-task-label').textContent        = task ? task.text : '—';
@@ -497,7 +992,6 @@
     $('session-controls').classList.remove('hidden');
 
     showView('session');
-    Sound.sessionStart();
 
     // Use the session-level minutes (set by picker, not global settings)
     Timer.startFocus(
@@ -524,6 +1018,122 @@
   // Step 4: Timer completes → show reward
   function onSessionComplete() {
     completeSession(true);
+  }
+
+  // ══════════════════════════════════════════
+  // MID-SESSION PLAN DRAWER
+  // ══════════════════════════════════════════
+
+  let _drawerDifficulty = 1.0;
+  let _drawerPillar = null;
+
+  function openPlanDrawer() {
+    // Auto-hold the timer while planning
+    if (Timer.isRunning()) {
+      Timer.hold((holdRemain) => {
+        const { mm, ss } = Timer.format(holdRemain);
+        $('hold-countdown').textContent = `${mm}:${ss}`;
+        if (holdRemain <= 0) {
+          $('hold-overlay').classList.add('hidden');
+          $('session-controls').classList.remove('hidden');
+        }
+      });
+      // Don't show hold overlay — drawer takes over the screen
+    }
+
+    // Reset drawer state
+    _drawerDifficulty = 1.0;
+    _drawerPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
+    $('drawer-task-input').value = '';
+
+    // Render pillar chips
+    _renderDrawerPillarChips();
+
+    // Render goal dropdown filtered to selected pillar
+    _renderDrawerGoalSelect();
+
+    // Reset difficulty buttons
+    document.querySelectorAll('.drawer-diff-btn').forEach(btn => {
+      btn.classList.toggle('active', parseFloat(btn.dataset.mult) === 1.0);
+    });
+
+    $('plan-drawer').classList.remove('hidden');
+    setTimeout(() => $('drawer-task-input').focus(), 120);
+  }
+
+  function closePlanDrawer() {
+    $('plan-drawer').classList.add('hidden');
+
+    // Resume timer if it was held by us (hold overlay is NOT showing)
+    if (Timer.isHeld() && $('hold-overlay').classList.contains('hidden')) {
+      Timer.resume();
+    }
+  }
+
+  function _renderDrawerPillarChips() {
+    const row = $('drawer-pillar-chips');
+    const pillars = state.pillars || [];
+    if (!pillars.length) {
+      row.innerHTML = `<span style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);letter-spacing:2px;">NO PILLARS — ADD ONE IN PLAN MODE</span>`;
+      _drawerPillar = 'other';
+      return;
+    }
+    // Ensure selected pillar still exists
+    if (!pillars.some(p => p.id === _drawerPillar)) {
+      _drawerPillar = pillars[0].id;
+    }
+    row.innerHTML = pillars.map(p => `
+      <div class="pillar-chip ${p.id === _drawerPillar ? 'selected' : ''}"
+           data-pillar="${p.id}"
+           style="--pillar-color:${p.color}">
+        <span class="pillar-chip-dot"></span>${p.name}
+      </div>`).join('');
+    row.querySelectorAll('.pillar-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        _drawerPillar = chip.dataset.pillar;
+        _renderDrawerPillarChips();
+        _renderDrawerGoalSelect();
+      });
+    });
+  }
+
+  function _renderDrawerGoalSelect() {
+    const sel = $('drawer-goal-select');
+    const goals = (state.goals || []).filter(g =>
+      g.status !== 'done' && g.pillarId === _drawerPillar
+    );
+    sel.innerHTML = `<option value="">— no goal —</option>` +
+      goals.map(g => `<option value="${g.id}">${g.title}</option>`).join('');
+  }
+
+  function addTaskFromDrawer() {
+    const text = $('drawer-task-input').value.trim();
+    if (!text) {
+      $('drawer-task-input').focus();
+      $('drawer-task-input').placeholder = 'type a task first...';
+      return;
+    }
+
+    const goalId = $('drawer-goal-select').value || null;
+
+    // Captured mid-session → goes to UNSCHEDULED. You are focusing right
+    // now; deciding *when* to do this can wait until you next plan.
+    const task = Object.assign(Storage.taskDefaults(), {
+      id:           Storage.uuid(),
+      text,
+      tag:          _drawerPillar || 'other',
+      goalId:       goalId || null,
+      completed:    false,
+      xpMultiplier: _drawerDifficulty,
+      createdAt:    new Date().toISOString(),
+      completedAt:  null
+    });
+
+    state.tasks.push(task);
+    saveState();
+    Sound.taskAdded();
+    showToast('TASK QUEUED ✓', 'success');
+    closePlanDrawer();
   }
 
   // Step 5: Manual complete or abandon
@@ -571,6 +1181,15 @@
     state.today.sessionsCompleted += 1;
 
     // Log session
+    // focusedMinutes: actual worked time (excludes hold time) — used by
+    // achievements (Deep Forge, Forge Hours) instead of the wall-clock
+    // startTime→endTime span, which would incorrectly include any time
+    // spent held via the mid-session plan drawer.
+    // taskScheduledStartSnapshot: the task's scheduling AT COMPLETION
+    // TIME, pinned into the log so achievements (On Tempo) reflect what
+    // was actually true when the session happened — immune to the task
+    // being rescheduled or deleted afterward.
+    const _completingTask = state.tasks.find(t => t.id === sessionContext.taskId);
     state.sessions.push({
       id:        Storage.uuid(),
       taskId:    sessionContext.taskId,
@@ -579,11 +1198,14 @@
       endTime:   new Date().toISOString(),
       completed: true,
       xpEarned:  xpResult.total,
-      coinsEarned: xpResult.coinsEarned
+      coinsEarned: xpResult.coinsEarned,
+      focusedMinutes: actualMinutes,
+      taskScheduledStartSnapshot: _completingTask ? _completingTask.scheduledStart : null
     });
 
     // Persist
     state.user = updatedUser;
+    checkAchievements();
     saveState();
 
     // Show reward screen
@@ -594,71 +1216,160 @@
   // REWARD SCREEN
   // ══════════════════════════════════════════
   function showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded) {
-    $('reward-xp').textContent         = xpResult.total;
-    $('reward-streak').textContent     = newStreak.current;
-    $('reward-total').textContent      = state.user.totalSessions;
+    // ── Reset reward UI state — critical fix for reused view ──
+    $('task-bonus-display').classList.add('hidden');
+    $('task-decision').classList.add('hidden');
+    $('levelup-banner').classList.add('hidden');
+    $('reward-bonus-label').classList.add('hidden');
+    $('reward-coins-earned').classList.add('hidden');
+    $('reward-freeze-award').classList.add('hidden');
+    $('reward-stats').classList.add('hidden');
+    const decisionBtns = document.querySelectorAll('#task-decision button');
+    decisionBtns.forEach(b => b.disabled = true);
+
+    // Beat 0 — the task I did (data was already written in completeSession)
+    renderRewardTask(state.tasks.find(t => t.id === sessionContext.taskId));
+
+    // Stage the numbers (hidden until their beat)
+    $('reward-xp').textContent          = '0';
+    $('reward-streak').textContent      = newStreak.current;
+    $('reward-total').textContent       = state.user.totalSessions;
     $('reward-coins-total').textContent = state.user.coins || 0;
+    if (xpResult.coinsEarned > 0) $('reward-coins').textContent = xpResult.coinsEarned;
+    if (xpResult.bonusTriggered) $('reward-bonus-label').textContent = `⚡ FOCUS BONUS +${xpResult.bonus} XP`;
 
-    // Coins earned
-    if (xpResult.coinsEarned > 0) {
-      $('reward-coins').textContent = xpResult.coinsEarned;
-      $('reward-coins-earned').classList.remove('hidden');
-    } else {
-      $('reward-coins-earned').classList.add('hidden');
-    }
-
-    // Bonus label
-    const bonusEl = $('reward-bonus-label');
-    if (xpResult.bonusTriggered) {
-      bonusEl.textContent = `⚡ FOCUS BONUS +${xpResult.bonus} XP`;
-      bonusEl.classList.remove('hidden');
-    } else {
-      bonusEl.classList.add('hidden');
-    }
-
-    // Level up
-    const levelupEl = $('levelup-banner');
-    if (levelsGained > 0) {
-      $('levelup-new-level').textContent = newLevel;
-      levelupEl.classList.remove('hidden');
-    } else {
-      levelupEl.classList.add('hidden');
-    }
-
-    // Rank change
-    const rankEl = $('reward-rank-change');
-    if (rankChanged) {
-      rankEl.textContent = `▲ RANK UP → ${newRank}`;
-      rankEl.classList.remove('hidden');
-    } else {
-      rankEl.classList.add('hidden');
-    }
-
-    // Freeze awarded
-    const freezeEl = $('reward-freeze-award');
-    if (freezeEl) {
-      if (freezeAwarded) {
-        freezeEl.classList.remove('hidden');
-      } else {
-        freezeEl.classList.add('hidden');
-      }
+    // Stage the level-up ceremony
+    const hadLevelUp = (levelsGained > 0 || rankChanged);
+    if (hadLevelUp) {
+      const oldRank = XP.getRank(Math.max(1, newLevel - levelsGained));
+      const lu = _themeLevelUpText(newLevel, oldRank, newRank, rankChanged);
+      $('levelup-head').textContent    = lu.head;
+      $('levelup-num').textContent     = lu.num;
+      $('levelup-rankline').textContent = lu.sub;
     }
 
     showView('reward');
+    Sound.sessionComplete(); // Beat 0 — "I did THIS"
 
-    // Play sounds after view transition
+    // ── The beats ──
+    // Beat 1 (0.45s): XP counts up + chime
     setTimeout(() => {
-      if (levelsGained > 0) {
-        Sound.levelUp();
-      } else if (freezeAwarded) {
-        Sound.levelUp(); // reuse level-up sound for freeze award
-      } else if (xpResult.bonusTriggered) {
+      countUp($('reward-xp'), xpResult.total, 900);
+      Sound.xpGain();
+    }, 450);
+
+    // Beat 1b (0.95s): FOCUS BONUS chip — the surprise
+    if (xpResult.bonusTriggered) {
+      setTimeout(() => {
+        $('reward-bonus-label').classList.remove('hidden');
         Sound.focusBonus();
-      } else {
-        Sound.sessionComplete();
-      }
-      setTimeout(() => Sound.xpGain(), 300);
-    }, 150);
+      }, 950);
+    }
+
+    // Beat 2 (1.45s): coins + streak slide in — the proof
+    setTimeout(() => {
+      if (xpResult.coinsEarned > 0) $('reward-coins-earned').classList.remove('hidden');
+      $('reward-stats').classList.remove('hidden');
+      Sound.click();
+    }, 1450);
+
+    // Beat 3 (~2.15s): LEVEL UP ceremony — fanfare + particles + identity
+    if (hadLevelUp || freezeAwarded) {
+      setTimeout(() => {
+        if (freezeAwarded && !hadLevelUp) {
+          $('reward-freeze-award').classList.remove('hidden');
+          Sound.levelUp();
+        }
+        if (hadLevelUp) {
+          $('levelup-banner').classList.remove('hidden');
+          burstParticles(14, $('levelup-banner'));
+          Sound.levelUp();
+        }
+      }, 2150);
+    }
+
+    // Beat 4 (after ceremony): the decision fades in
+    const decisionAt = (hadLevelUp || freezeAwarded) ? 3700 : 2600;
+    setTimeout(() => {
+      $('task-decision').classList.remove('hidden');
+      decisionBtns.forEach(b => b.disabled = false);
+    }, decisionAt);
+  }
+
+  // ── Beat 0 helper — "I did THIS" ──
+  function renderRewardTask(task) {
+    const display = $('reward-task-display');
+    if (!display) return;
+    if (!task) { display.style.display = 'none'; return; }
+    display.style.display = '';
+    const pillar = getPillarById(task.tag);
+    const badge = $('reward-task-badge');
+    badge.textContent = `${pillar.icon} ${pillar.name}`;
+    badge.className   = 'task-tag-badge';
+    badge.style.cssText = `background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44`;
+    $('reward-task-name').textContent = task.text;
+  }
+
+  // ── Beat 1 helper — XP count-up (requestAnimationFrame) ──
+  function countUp(el, target, duration) {
+    if (!el) return;
+    const start = performance.now();
+    const from  = 0;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      el.textContent = Math.round(from + (target - from) * eased);
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  // ── Beat 3 helper — particle burst (reuses the xp-particle motif) ──
+  function burstParticles(count, origin) {
+    const rect = origin ? origin.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('span');
+      p.className = 'xp-particle';
+      p.textContent = Math.random() > 0.5 ? '★' : '⚡';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 90;
+      p.style.left = (cx + Math.cos(ang) * dist) + 'px';
+      p.style.top  = (cy + Math.sin(ang) * dist) + 'px';
+      p.style.fontSize = (14 + Math.random() * 16) + 'px';
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1600);
+    }
+  }
+
+  // ── Beat 3 helper — theme-flavored level-up line ──
+  function _themeLevelUpText(newLevel, oldRank, newRank, rankChanged) {
+    const theme = state.user.activeTheme || 'forge';
+    const tr = THEME_RANKS[theme] || {};
+    const oldRN = rankChanged && oldRank ? (tr[oldRank] || oldRank) : '';
+    const newRN = rankChanged && newRank ? (tr[newRank] || newRank) : '';
+
+    if (theme === 'anime') {
+      const bounty = Math.pow(newLevel, 2) * 1000000;
+      return {
+        head: 'BOUNTY INCREASED',
+        num:  '฿ ' + bounty.toLocaleString(),
+        sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+      };
+    }
+    if (theme === 'forge') {
+      return {
+        head: 'FORGED',
+        num:  'LVL ' + newLevel,
+        sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+      };
+    }
+    return {
+      head: 'LEVEL UP!',
+      num:  'LVL ' + newLevel,
+      sub:  rankChanged ? `${oldRN} ▸ ${newRN}` : ''
+    };
   }
 
   // ══════════════════════════════════════════
@@ -702,14 +1413,14 @@
   // All available themes — single source of truth
   // Theme-specific rank title overrides
   const ANIME_RANKS = {
-    'INITIATE':    'ACADEMY',
-    'APPRENTICE':  'GENIN',
-    'OPERATOR':    'CHUNIN',
-    'SPECIALIST':  'JONIN',
-    'VETERAN':     'ANBU',
-    'ELITE':       'KAGE',
-    'COMMANDER':   'HOKAGE',
-    'LEGEND':      'LEGEND'
+    'INITIATE':    'CABIN BOY',
+    'APPRENTICE':  'SAILOR',
+    'OPERATOR':    'PIRATE',
+    'SPECIALIST':  'SUPER ROOKIE',
+    'VETERAN':     'CAPTAIN',
+    'ELITE':       'WARLORD',
+    'COMMANDER':   'EMPEROR',
+    'LEGEND':      'PIRATE KING'
   };
 
   const HEISENBERG_RANKS = {
@@ -852,7 +1563,7 @@
       barClass: 'anime-bar',
       accentClass: 'preview-accent-anime',
       lineClass: 'anime-line',
-      desc: 'Deep navy. Neon pink. Shinobi ranks.'
+      desc: 'Grand Line. Sun gold. Pirate ranks.'
     }
   ];
 
@@ -865,14 +1576,28 @@
       if (rankEl) {
         const baseRank = state.user.rank || 'INITIATE';
         const tr = THEME_RANKS[themeId];
-        rankEl.textContent = (tr && tr[baseRank]) ? tr[baseRank] : baseRank;
+        const title = (tr && tr[baseRank]) ? tr[baseRank] : baseRank;
+        rankEl.textContent = `LVL ${state.user.level || 1} · ${title}`;
       }
     }
   }
 
   // ══════════════════════════════════════════
-  // PLAN MODE
+  // PLAN MODE  (bridge → plan.js / calendar.js)
   // ══════════════════════════════════════════
+  //
+  // The planning model is:  PILLARS → GOALS → TASKS → CALENDAR
+  //
+  //   Pillars  = WHERE  (areas of life)
+  //   Goals    = WHY    (outcomes with deadlines)
+  //   Tasks    = WHAT   (actions that move a goal forward)
+  //   Calendar = WHEN   (the commitment layer)
+  //
+  // The old "Week 1..N" containers, the separate THIS WEEK kanban and the
+  // duplicated TASKS tab are gone — they were three competing
+  // representations of the same work. Real implementation lives in
+  // plan.js (Objectives + Goal Detail) and calendar.js (the time grid),
+  // so this god file does not grow.
 
   const PILLAR_COLORS = [
     '#e85d04', '#4caf7d', '#7b9de8', '#e040fb',
@@ -880,644 +1605,71 @@
     '#ff9800', '#b39ddb'
   ];
 
-  // ── Goal selector for intention screen ──
-  function _renderGoalSelector(pillarId) {
-    const el = $('intention-goal-selector');
-    if (!el) return;
-    const goals = (state.goals || []).filter(g => g.status === 'active');
-    if (!goals.length) {
-      el.innerHTML = `<span class="goal-selector-empty">No active goals — add some in PLAN MODE</span>`;
-      return;
-    }
-    const sorted = [
-      ...goals.filter(g => g.pillarId === pillarId),
-      ...goals.filter(g => g.pillarId !== pillarId)
-    ];
-    el.innerHTML = `
-      <div class="goal-selector-none ${!sessionContext.goalId ? 'selected' : ''}" id="goal-sel-none">NONE</div>
-      ${sorted.map(g => {
-        const pillar = getPillarById(g.pillarId);
-        return `<div class="goal-selector-chip ${sessionContext.goalId === g.id ? 'selected' : ''}"
-                     data-goal-id="${g.id}" style="--pillar-color:${pillar.color}">
-                  ${pillar.icon} ${escHtml(g.title)}
-                </div>`;
-      }).join('')}`;
-    el.querySelectorAll('.goal-selector-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        sessionContext.goalId = chip.dataset.goalId;
-        _renderGoalSelector(pillarId);
-      });
-    });
-    el.querySelector('#goal-sel-none').addEventListener('click', () => {
-      sessionContext.goalId = null;
-      _renderGoalSelector(pillarId);
-    });
-  }
+  const PILLAR_ICONS = ['◎','📚','🎮','💻','🎨','🏋️','💰','🎵','📝','🌍','🔬','⚡','🎯','🚀','📖','🧠'];
 
-  // ── Plan mode state ──
-  let _activePillarId  = null;
-  let _activeGoalId    = null;
-  let _editingGoalId   = null;
-  let _editingGoalWeekCount = 4;
-  let _goalBeingMoved  = null; // task id being moved (mobile)
-
-  function renderPlanMode() {
-    showPlanView('pillars');
-    renderPillarList();
-    renderPillarForm(null);
-  }
-
-  function showPlanView(view) {
-    ['pillars','goals','weeks'].forEach(v => {
-      const el = $(`plan-view-${v}`);
-      if (el) el.classList.toggle('hidden', v !== view);
-    });
-  }
-
-  function renderPillarList() {
-    const list    = $('plan-pillars-list');
-    const pillars = state.pillars || [];
-
-    if (!pillars.length) {
-      list.innerHTML = `<div class="plan-empty-state">No pillars yet.<br/>Add one below.</div>`;
-      return;
-    }
-
-    list.innerHTML = pillars.map((p, i) => {
-      const goalCount = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active').length;
-      const taskCount = (state.tasks || []).filter(t => t.tag === p.id && !t.completed).length;
-      // Inline goal progress for this pillar
-      const activeGoals = (state.goals || []).filter(g => g.pillarId === p.id && g.status === 'active');
-      const goalsHTML = activeGoals.map(g => {
-        const gTasks = (state.tasks || []).filter(t => t.goalId === g.id);
-        const gDone  = gTasks.filter(t => t.completed).length;
-        const gTotal = gTasks.length;
-        const pct    = gTotal > 0 ? Math.min(100, Math.round(gDone/gTotal*100)) : 0;
-        const daysLeft = _daysUntil(g.deadline);
-        let deadlineStr = '';
-        if (g.deadline) {
-          if (daysLeft < 0)       deadlineStr = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
-          else if (daysLeft <= 7) deadlineStr = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
-          else                    deadlineStr = `<span class="goal-weeks">${_weeksUntil(g.deadline)}w LEFT</span>`;
-        }
-        return `<div class="pillar-goal-row" data-goal-id="${g.id}" data-pillar-id="${p.id}">
-          <div class="pillar-goal-top">
-            <span class="pillar-goal-name">${escHtml(g.title)}</span>
-            <div class="pillar-goal-right">
-              ${deadlineStr}
-              <span class="goal-sessions-count">${gDone}/${gTotal}</span>
-            </div>
-          </div>
-          ${gTotal > 0 ? `<div class="goal-progress-bar" style="margin-top:4px">
-            <div class="goal-progress-fill" style="width:${pct}%;background:${p.color}"></div>
-          </div>` : ''}
-        </div>`;
-      }).join('');
-
-      return `
-        <div class="plan-pillar-item" style="--pillar-color:${p.color}" data-pillar-id="${p.id}">
-          <div class="plan-pillar-header-row">
-            <div class="plan-pillar-icon">${p.icon}</div>
-            <div class="plan-pillar-info">
-              <div class="plan-pillar-name">${p.name}</div>
-              <div class="plan-pillar-meta">${goalCount} goal${goalCount !== 1 ? 's' : ''} · ${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
-            </div>
-            <div class="plan-pillar-actions">
-              <button class="pillar-action-btn edit-pillar" data-idx="${i}">EDIT</button>
-              <button class="pillar-action-btn delete delete-pillar" data-idx="${i}">✕</button>
-              <span class="pillar-chevron">→</span>
-            </div>
-          </div>
-          ${goalsHTML ? `<div class="pillar-goals-preview">${goalsHTML}</div>` : ''}
-        </div>`;
-    }).join('');
-
-    // Tap pillar to open goals
-    list.querySelectorAll('.plan-pillar-item').forEach(item => {
-      item.addEventListener('click', e => {
-        if (e.target.closest('.pillar-action-btn') || e.target.closest('.pillar-goal-row')) return;
-        Sound.click();
-        openPillarGoals(item.dataset.pillarId);
-      });
-    });
-
-    // Tap inline goal row → open that goal's weeks directly
-    list.querySelectorAll('.pillar-goal-row').forEach(row => {
-      row.addEventListener('click', e => {
-        e.stopPropagation();
-        Sound.click();
-        _activePillarId = row.dataset.pillarId;
-        openGoalWeeks(row.dataset.goalId);
-      });
-    });
-
-    // Edit pillar buttons
-    list.querySelectorAll('.edit-pillar').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        renderPillarForm(parseInt(btn.dataset.idx));
+  // Shared context handed to the plan modules. They read/write live state
+  // through these helpers rather than importing app.js internals.
+  function _planContext() {
+    return {
+      getState:      () => state,
+      save:          saveState,
+      getPillarById,
+      getGoalById,
+      escHtml,
+      showToast,
+      forgeConfirm,
+      sound:         Sound,
+      checkAchievements,
+      onTasksChanged: () => {
+        renderDashboard();
+        if ($('task-list')) renderTaskList();
+      },
+      PILLAR_COLORS,
+      PILLAR_ICONS,
+      editPillar: (idx) => {
+        renderPillarForm(idx);
         $('pillar-form').classList.remove('hidden');
         $('btn-add-pillar').classList.add('hidden');
-      });
-    });
-
-    // Delete pillar buttons
-    list.querySelectorAll('.delete-pillar').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const idx = parseInt(btn.dataset.idx);
-        const pillar = state.pillars[idx];
-        forgeConfirm(`Delete "${pillar.name}"? Tasks will move to OTHER.`, () => {
-          state.tasks.forEach(t => { if (t.tag === pillar.id) t.tag = 'other'; });
-          state.pillars.splice(idx, 1);
-          saveState();
-          renderPillarList();
-          renderPillarChips();
-        });
-      });
-    });
-  }
-
-  function openPillarGoals(pillarId) {
-    _activePillarId = pillarId;
-    const pillar = getPillarById(pillarId);
-    $('goals-pillar-icon').textContent = pillar.icon;
-    $('goals-pillar-name').textContent = pillar.name;
-    $('goal-form').classList.add('hidden');
-    $('btn-add-goal').classList.remove('hidden');
-    renderGoalsList();
-    showPlanView('goals');
-  }
-
-  // ── GOALS ──
-  function renderGoalsList() {
-    const list  = $('plan-goals-list');
-    const goals = (state.goals || []).filter(g => g.pillarId === _activePillarId && g.status !== 'archived');
-    if (!goals.length) {
-      list.innerHTML = `<div class="plan-empty-state">No goals yet.<br/>Add one below.</div>`;
-      return;
-    }
-    list.innerHTML = goals.map(goal => {
-      const pillar   = getPillarById(goal.pillarId);
-      const daysLeft = _daysUntil(goal.deadline);
-      const isOverdue = daysLeft < 0;
-      const tasks    = (state.tasks || []).filter(t => t.goalId === goal.id);
-      const done     = tasks.filter(t => t.completed).length;
-      const total    = tasks.length;
-      const progress = total > 0 ? Math.min(100, Math.round(done/total*100)) : null;
-
-      let deadlineLabel = '';
-      if (goal.deadline) {
-        if (isOverdue)          deadlineLabel = `<span class="goal-overdue">${Math.abs(daysLeft)}d OVERDUE</span>`;
-        else if (daysLeft <= 7) deadlineLabel = `<span class="goal-urgent">${daysLeft}d LEFT</span>`;
-        else                    deadlineLabel = `<span class="goal-weeks">${_weeksUntil(goal.deadline)}w LEFT</span>`;
       }
-
-      return `
-        <div class="plan-goal-card ${isOverdue ? 'is-overdue' : ''} ${goal.status === 'completed' ? 'is-completed' : ''}"
-             data-goal-id="${goal.id}" style="--pillar-color:${pillar.color}">
-          <div class="goal-card-top">
-            <div class="goal-card-title">${escHtml(goal.title)}</div>
-            <div class="goal-card-actions">
-              <button class="pillar-action-btn open-weeks-btn" data-id="${goal.id}">PLAN →</button>
-              <button class="pillar-action-btn edit-goal" data-id="${goal.id}">EDIT</button>
-              ${goal.status !== 'completed'
-                ? `<button class="pillar-action-btn complete-goal" data-id="${goal.id}">✓</button>`
-                : `<span class="goal-done-badge">DONE</span>`}
-              <button class="pillar-action-btn delete delete-goal" data-id="${goal.id}">✕</button>
-            </div>
-          </div>
-          <div class="goal-card-meta">
-            ${deadlineLabel}
-            <span class="goal-sessions-count">◎ ${done}/${total} tasks</span>
-          </div>
-          ${progress !== null ? `
-          <div class="goal-progress-bar">
-            <div class="goal-progress-fill" style="width:${progress}%;background:${pillar.color}"></div>
-          </div>` : ''}
-        </div>`;
-    }).join('');
-
-    list.querySelectorAll('.open-weeks-btn').forEach(btn => {
-      btn.addEventListener('click', e => { e.stopPropagation(); openGoalWeeks(btn.dataset.id); });
-    });
-    list.querySelectorAll('.edit-goal').forEach(btn => {
-      btn.addEventListener('click', e => { e.stopPropagation(); openGoalForm(btn.dataset.id); });
-    });
-    list.querySelectorAll('.complete-goal').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        forgeConfirm('Mark goal as complete?', () => {
-          const g = state.goals.find(g => g.id === btn.dataset.id);
-          if (g) { g.status = 'completed'; saveState(); renderGoalsList(); Sound.levelUp(); }
-        });
-      });
-    });
-    list.querySelectorAll('.delete-goal').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        forgeConfirm('Delete this goal?', () => {
-          state.goals = state.goals.filter(g => g.id !== btn.dataset.id);
-          saveState(); renderGoalsList();
-        });
-      });
-    });
-  }
-
-  function openGoalForm(editId) {
-    _editingGoalId = editId || null;
-    const goal = editId ? state.goals.find(g => g.id === editId) : null;
-    $('goal-title-input').value    = goal ? goal.title : '';
-    $('goal-deadline-input').value = goal ? (goal.deadline || '') : '';
-    _editingGoalWeekCount = goal ? (goal.weekCount || 4) : 4;
-    _updateWeekCountDisplay();
-    $('goal-form').classList.remove('hidden');
-    $('btn-add-goal').classList.add('hidden');
-    $('goal-title-input').focus();
-  }
-
-  function _updateWeekCountDisplay() {
-    $('goal-week-count-display').textContent = `${_editingGoalWeekCount} week${_editingGoalWeekCount !== 1 ? 's' : ''}`;
-  }
-
-  function _weeksUntil(dateStr) {
-    if (!dateStr) return '?';
-    const diff = new Date(dateStr) - new Date();
-    return Math.max(0, Math.ceil(diff / (7*24*60*60*1000)));
-  }
-
-  function _daysUntil(dateStr) {
-    if (!dateStr) return 999;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const d = new Date(dateStr); d.setHours(0,0,0,0);
-    return Math.round((d - today) / (24*60*60*1000));
-  }
-
-  // ── WEEKS VIEW ──
-  function openGoalWeeks(goalId) {
-    _activeGoalId = goalId;
-    const goal  = state.goals.find(g => g.id === goalId);
-    if (!goal) return;
-    $('weeks-goal-title').textContent = goal.title;
-    renderWeeksView();
-    showPlanView('weeks');
-  }
-
-  function renderWeeksView() {
-    const goal    = state.goals.find(g => g.id === _activeGoalId);
-    if (!goal) return;
-    const pillar  = getPillarById(goal.pillarId);
-    const weeks   = (state.weeks || []).filter(w => w.goalId === _activeGoalId)
-                      .sort((a,b) => a.number - b.number);
-    const allTasks = (state.tasks || []).filter(t => t.goalId === _activeGoalId);
-    const unassigned = allTasks.filter(t => !t.weekId);
-
-    // Progress pill
-    const done  = allTasks.filter(t => t.completed).length;
-    const total = allTasks.length;
-    $('weeks-goal-progress').textContent = total ? `${done}/${total}` : '';
-    $('weeks-goal-progress').style.cssText = total
-      ? `background:${pillar.color}22;color:${pillar.color};border:1px solid ${pillar.color}44`
-      : '';
-
-    const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 0;
-    const container = $('weeks-content');
-
-    // Render week columns
-    let html = `<div class="weeks-columns">`;
-
-    weeks.forEach(week => {
-      const weekTasks = allTasks.filter(t => t.weekId === week.id);
-      const wDone = weekTasks.filter(t => t.completed).length;
-      html += `
-        <div class="week-column ${isMobile ? '' : 'desktop-drop-zone'}" data-week-id="${week.id}"
-             id="week-col-${week.id}">
-          <div class="week-col-header" style="--pillar-color:${pillar.color}">
-            <div class="week-col-header-top">
-              <span class="week-col-label">${escHtml(week.label)}</span>
-              <div class="week-col-header-actions">
-                <button class="week-edit-btn" data-week-id="${week.id}">EDIT</button>
-                <button class="week-delete-btn" data-week-id="${week.id}">✕</button>
-              </div>
-            </div>
-            ${week.fromDate || week.toDate ? `
-            <div class="week-col-dates">
-              ${week.fromDate ? _formatShortDate(week.fromDate) : '?'} → ${week.toDate ? _formatShortDate(week.toDate) : '?'}
-            </div>` : ''}
-            <span class="week-col-count">${wDone}/${weekTasks.length} tasks</span>
-          </div>
-          <div class="week-tasks-list" id="week-tasks-${week.id}">
-            ${renderWeekTasks(weekTasks, week.id, pillar, isMobile)}
-          </div>
-          <div class="week-add-task-row">
-            <input type="text" class="week-task-input text-input" data-week-id="${week.id}"
-                   placeholder="Add task..." maxlength="80" />
-            <button class="week-task-add-btn" data-week-id="${week.id}">+</button>
-          </div>
-          ${!isMobile ? `<div class="drop-indicator hidden" id="drop-${week.id}">DROP HERE</div>` : ''}
-        </div>`;
-    });
-
-    // Unassigned column
-    html += `
-      <div class="week-column unassigned-col ${isMobile ? '' : 'desktop-drop-zone'}" data-week-id="unassigned"
-           id="week-col-unassigned">
-        <div class="week-col-header">
-          <span class="week-col-label">UNASSIGNED</span>
-          <span class="week-col-count">${unassigned.length}</span>
-        </div>
-        <div class="week-tasks-list" id="week-tasks-unassigned">
-          ${renderWeekTasks(unassigned, 'unassigned', pillar, isMobile)}
-        </div>
-        ${!isMobile ? `<div class="drop-indicator hidden" id="drop-unassigned">DROP HERE</div>` : ''}
-      </div>`;
-
-    html += `</div>
-      <button class="plan-add-pillar-btn" id="btn-add-week">+ ADD WEEK</button>`;
-
-    container.innerHTML = html;
-    _bindWeeksEvents(isMobile, pillar);
-  }
-
-  function renderWeekTasks(tasks, weekId, pillar, isMobile) {
-    // Sort: incomplete first, completed last
-    tasks = [...tasks].sort((a,b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
-    if (!tasks.length) return `<div class="week-empty">No tasks</div>`;
-    return tasks.map(task => `
-      <div class="week-task-item ${task.completed ? 'is-done' : ''}"
-           data-task-id="${task.id}"
-           ${!isMobile ? 'draggable="true"' : ''}>
-        ${!isMobile ? `<span class="drag-handle">⠿</span>` : ''}
-        <span class="week-task-check ${task.completed ? 'checked' : ''}"
-              data-task-id="${task.id}">
-          ${task.completed ? '✓' : '○'}
-        </span>
-        <span class="week-task-text">${escHtml(task.text)}</span>
-        <div class="week-task-actions">
-          ${isMobile ? `<button class="week-task-move-btn" data-task-id="${task.id}" data-week-id="${weekId}">⇄</button>` : ''}
-          <button class="week-task-del-btn" data-task-id="${task.id}">✕</button>
-        </div>
-      </div>`).join('');
-  }
-
-  function _bindWeeksEvents(isMobile, pillar) {
-    const goal = state.goals.find(g => g.id === _activeGoalId);
-
-    // Add week button — opens form
-    $('btn-add-week').addEventListener('click', () => openWeekForm(null));
-
-    // Edit week buttons
-    document.querySelectorAll('.week-edit-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        openWeekForm(btn.dataset.weekId);
-      });
-    });
-
-    // Delete week buttons
-    document.querySelectorAll('.week-delete-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        forgeConfirm('Delete this week? Tasks become unassigned.', () => {
-          const wid = btn.dataset.weekId;
-          state.tasks.filter(t => t.weekId === wid).forEach(t => t.weekId = null);
-          state.weeks = (state.weeks || []).filter(w => w.id !== wid);
-          saveState(); renderWeeksView();
-        });
-      });
-    });
-
-    // Add task per week
-    document.querySelectorAll('.week-task-add-btn').forEach(btn => {
-      btn.addEventListener('click', () => _addPlanTask(btn.dataset.weekId));
-    });
-    document.querySelectorAll('.week-task-input').forEach(input => {
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') _addPlanTask(input.dataset.weekId);
-      });
-    });
-
-    // Check off tasks
-    document.querySelectorAll('.week-task-check').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const task = state.tasks.find(t => t.id === btn.dataset.taskId);
-        if (!task) return;
-        if (!task.completed) {
-          task.completed = true;
-          task.completedAt = new Date().toISOString();
-          Sound.taskDone();
-        } else {
-          task.completed = false;
-          task.completedAt = null;
-        }
-        saveState();
-        renderWeeksView();
-        renderDashboard();
-      });
-    });
-
-    // Delete tasks
-    document.querySelectorAll('.week-task-del-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.tasks = state.tasks.filter(t => t.id !== btn.dataset.taskId);
-        saveState(); renderWeeksView(); renderDashboard();
-      });
-    });
-
-    // ── MOBILE: move sheet ──
-    if (isMobile) {
-      document.querySelectorAll('.week-task-move-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-          e.stopPropagation();
-          openMoveSheet(btn.dataset.taskId);
-        });
-      });
-    }
-
-    // ── DESKTOP: drag and drop ──
-    if (!isMobile) {
-      let dragTaskId = null;
-
-      document.querySelectorAll('.week-task-item[draggable]').forEach(item => {
-        item.addEventListener('dragstart', e => {
-          dragTaskId = item.dataset.taskId;
-          item.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
-        });
-        item.addEventListener('dragend', () => {
-          item.classList.remove('dragging');
-          document.querySelectorAll('.drop-indicator').forEach(d => d.classList.add('hidden'));
-          document.querySelectorAll('.week-column').forEach(c => c.classList.remove('drag-over'));
-        });
-      });
-
-      document.querySelectorAll('.desktop-drop-zone').forEach(zone => {
-        zone.addEventListener('dragover', e => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          zone.classList.add('drag-over');
-          const ind = $(`drop-${zone.dataset.weekId}`);
-          if (ind) ind.classList.remove('hidden');
-        });
-        zone.addEventListener('dragleave', () => {
-          zone.classList.remove('drag-over');
-          const ind = $(`drop-${zone.dataset.weekId}`);
-          if (ind) ind.classList.add('hidden');
-        });
-        zone.addEventListener('drop', e => {
-          e.preventDefault();
-          zone.classList.remove('drag-over');
-          const ind = $(`drop-${zone.dataset.weekId}`);
-          if (ind) ind.classList.add('hidden');
-          if (!dragTaskId) return;
-          _moveTask(dragTaskId, zone.dataset.weekId);
-          dragTaskId = null;
-        });
-      });
-    }
-  }
-
-  function _formatShortDate(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
-  }
-
-  let _editingWeekId = null;
-
-  function openWeekForm(weekId) {
-    _editingWeekId = weekId;
-    const week = weekId ? (state.weeks || []).find(w => w.id === weekId) : null;
-    $('week-name-input').value  = week ? week.label : '';
-    $('week-from-input').value  = week ? (week.fromDate || '') : '';
-    $('week-to-input').value    = week ? (week.toDate   || '') : '';
-    $('week-form').classList.remove('hidden');
-    $('btn-add-week').classList.add('hidden');
-    $('week-name-input').focus();
-  }
-
-  function closeWeekForm() {
-    $('week-form').classList.add('hidden');
-    $('btn-add-week').classList.remove('hidden');
-    _editingWeekId = null;
-  }
-
-  function saveWeekForm() {
-    const label    = $('week-name-input').value.trim().toUpperCase();
-    const fromDate = $('week-from-input').value;
-    const toDate   = $('week-to-input').value;
-
-    if (!label) { _showShopToast('ENTER A NAME'); return; }
-
-    if (_editingWeekId) {
-      const w = state.weeks.find(w => w.id === _editingWeekId);
-      if (w) { w.label = label; w.fromDate = fromDate; w.toDate = toDate; }
-    } else {
-      if (!state.weeks) state.weeks = [];
-      const existing = state.weeks.filter(w => w.goalId === _activeGoalId);
-      state.weeks.push({
-        id:       Storage.uuid(),
-        goalId:   _activeGoalId,
-        number:   existing.length + 1,
-        label,
-        fromDate,
-        toDate
-      });
-    }
-
-    saveState();
-    Sound.click();
-    closeWeekForm();
-    renderWeeksView();
-  }
-
-  function _addPlanTask(weekId) {
-    const input = weekId === 'unassigned'
-      ? document.querySelector('.week-task-input[data-week-id="unassigned"]')
-      : document.querySelector(`.week-task-input[data-week-id="${weekId}"]`);
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
-
-    const goal  = state.goals.find(g => g.id === _activeGoalId);
-    const task  = {
-      id:           Storage.uuid(),
-      text,
-      tag:          goal ? goal.pillarId : 'other',
-      goalId:       _activeGoalId,
-      weekId:       weekId === 'unassigned' ? null : weekId,
-      completed:    false,
-      xpMultiplier: 1.0,
-      createdAt:    new Date().toISOString(),
-      completedAt:  null
     };
-    state.tasks.push(task);
-    saveState();
-    input.value = '';
-    renderWeeksView();
-    renderDashboard();
-    Sound.taskAdded();
   }
 
-  function _moveTask(taskId, weekId) {
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
-    task.weekId = weekId === 'unassigned' ? null : weekId;
-    saveState();
-    renderWeeksView();
-    Sound.click();
+  function renderPlanMode() {
+    if (window.Plan) Plan.render(_planContext());
   }
 
-  function openMoveSheet(taskId) {
-    _goalBeingMoved = taskId;
-    const weeks = (state.weeks || []).filter(w => w.goalId === _activeGoalId)
-                    .sort((a,b) => a.number - b.number);
-    const task  = state.tasks.find(t => t.id === taskId);
-    const opts  = $('move-task-options');
-    opts.innerHTML = [
-      ...weeks.map(w => `<button class="move-opt-btn" data-week-id="${w.id}">${w.label}</button>`),
-      `<button class="move-opt-btn ${!task?.weekId ? 'active' : ''}" data-week-id="unassigned">UNASSIGNED</button>`
-    ].join('');
-    opts.querySelectorAll('.move-opt-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        _moveTask(taskId, btn.dataset.weekId);
-        closeMoveSheet();
-      });
-    });
-    $('move-task-modal').classList.remove('hidden');
+  // Deep-link helper — used by the dashboard empty state and the rail.
+  function openPlanTab(tab) {
+    if (window.Plan) Plan.showTab(tab, _planContext());
   }
 
-  function closeMoveSheet() {
-    $('move-task-modal').classList.add('hidden');
-    _goalBeingMoved = null;
-  }
-
+  // ── Pillar editor (pillars are KEPT; only their role changed — they now
+  //    organise goals instead of acting as a planning hierarchy) ──
   let _editingPillarIdx = null;
-  let _selectedColor = PILLAR_COLORS[0];
-  let _selectedIcon = '◎';
+  let _selectedColor    = PILLAR_COLORS[0];
+  let _selectedIcon     = '◎';
 
   function renderPillarForm(editIdx) {
     _editingPillarIdx = editIdx;
     const pillar = editIdx !== null ? state.pillars[editIdx] : null;
     _selectedColor = pillar ? pillar.color : PILLAR_COLORS[0];
-    if (editIdx !== null && pillar) {
-      $('pillar-name-input').value = pillar.name;
-    } else {
-      $('pillar-name-input').value = '';
-    }
-    const swatches = $('pillar-color-swatches');
-    swatches.innerHTML = PILLAR_COLORS.map(c => `
-      <div class="color-swatch ${c === _selectedColor ? 'selected' : ''}"
-           style="background:${c}" data-color="${c}"></div>`).join('');
-    swatches.querySelectorAll('.color-swatch').forEach(s => {
-      s.addEventListener('click', () => {
-        _selectedColor = s.dataset.color;
-        swatches.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
-        s.classList.add('selected');
-      });
-    });
+    const nameInput = $('pillar-name-input');
+    if (nameInput) nameInput.value = pillar ? pillar.name : '';
 
-    // Icon picker
-    const PILLAR_ICONS = ['◎','📚','🎮','💻','🎨','🏋️','💰','🎵','📝','🌍','🔬','⚡','🎯','🚀','📖','🧠'];
+    const swatches = $('pillar-color-swatches');
+    if (swatches) {
+      swatches.innerHTML = PILLAR_COLORS.map(c => `
+        <div class="color-swatch ${c === _selectedColor ? 'selected' : ''}"
+             style="background:${c}" data-color="${c}"></div>`).join('');
+      swatches.querySelectorAll('.color-swatch').forEach(s => {
+        s.addEventListener('click', () => {
+          _selectedColor = s.dataset.color;
+          swatches.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
+          s.classList.add('selected');
+        });
+      });
+    }
+
     _selectedIcon = pillar ? pillar.icon : PILLAR_ICONS[0];
     const iconRow = $('pillar-icon-swatches');
     if (iconRow) {
@@ -1532,6 +1684,8 @@
       });
     }
   }
+
+
 
   // ══════════════════════════════════════════
   // SHOP / ARMORY
@@ -1556,6 +1710,143 @@
 
     ok.addEventListener('click', handleOk);
     cancel.addEventListener('click', handleCancel);
+  }
+
+  // ══════════════════════════════════════════
+  // AVATARS
+  // ══════════════════════════════════════════
+
+  // Sets the rail avatar circle to the active avatar's image, falling
+  // back to the initials monogram if the image file isn't there yet
+  // (404 → onerror fires → we swap to the text fallback). This is the
+  // ONLY place avatar image fallback logic lives — reused by the
+  // gallery view below via the same helper.
+  function renderActiveAvatar() {
+    const img = $('avatar-img');
+    const initialsEl = $('avatar-initials');
+    if (!img || !initialsEl) return;
+
+    const user = state.user;
+    const initials = String(user.name || 'OPERATIVE')
+      .trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || 'OP';
+    initialsEl.textContent = initials;
+
+    const active = window.Avatars ? Avatars.getActiveAvatar(state) : null;
+    if (!active) {
+      img.classList.add('hidden');
+      initialsEl.classList.remove('hidden');
+      return;
+    }
+
+    img.onerror = () => {
+      img.classList.add('hidden');
+      initialsEl.classList.remove('hidden');
+    };
+    img.onload = () => {
+      img.classList.remove('hidden');
+      initialsEl.classList.add('hidden');
+    };
+    img.src = active.img;
+  }
+
+  function renderAvatarsView() {
+    const grid = $('avatars-grid');
+    if (!grid || !window.Avatars) return;
+
+    const list = Avatars.listWithStatus(state);
+    const groups = [
+      { tier: 'default',     label: 'DEFAULT',     sub: 'Everyone starts with these.' },
+      { tier: 'coins',       label: 'COINS',       sub: 'Buy with coins from the Armory.' },
+      { tier: 'achievement', label: 'ACHIEVEMENT', sub: 'Unlock by earning achievements.' }
+    ];
+
+    $('avatars-coins-val').textContent = state.user.coins || 0;
+    const ownedCount = list.filter(a => a.owned).length;
+    $('avatars-count').textContent = `${ownedCount} / ${list.length}`;
+
+    grid.innerHTML = groups.map(g => {
+      const cards = list.filter(a => a.tier === g.tier).map(av => {
+        let footer;
+        if (av.tier === 'default') {
+          footer = `<span class="av-tag av-tag-free">FREE</span>`;
+        } else if (av.tier === 'coins') {
+          footer = av.owned
+            ? `<span class="av-tag av-tag-owned">OWNED</span>`
+            : `<button class="av-buy-btn" data-buy="${av.id}">◎ ${av.cost}</button>`;
+        } else {
+          footer = av.owned
+            ? `<span class="av-tag av-tag-owned">UNLOCKED</span>`
+            : `<span class="av-tag av-tag-locked">🔒 ${escHtml(av.requirementLabel)}${av.progressLabel ? ` · ${escHtml(av.progressLabel)}` : ''}</span>`;
+        }
+        return `
+          <div class="av-card tier-${av.tier} ${av.active ? 'active' : ''} ${!av.owned ? 'locked' : ''}"
+               data-avatar="${av.id}" data-owned="${av.owned ? '1' : '0'}">
+            <div class="av-portrait">
+              <img class="av-portrait-img hidden" alt="${escHtml(av.name)}" data-src="${av.img}" />
+              <span class="av-portrait-fallback">${escHtml(av.name.slice(0,2))}</span>
+              ${av.active ? '<span class="av-active-badge">✓</span>' : ''}
+            </div>
+            <div class="av-name">${escHtml(av.name)}</div>
+            ${footer}
+          </div>`;
+      }).join('');
+
+      if (!cards) return '';
+      return `
+        <div class="av-group">
+          <div class="av-group-head">
+            <span class="av-group-label">${g.label}</span>
+            <span class="av-group-sub">${g.sub}</span>
+          </div>
+          <div class="av-group-cards">${cards}</div>
+        </div>`;
+    }).join('');
+
+    // Load portrait images with graceful fallback (same pattern as the rail avatar)
+    grid.querySelectorAll('.av-portrait-img').forEach(img => {
+      img.onload  = () => { img.classList.remove('hidden'); img.nextElementSibling.classList.add('hidden'); };
+      img.onerror = () => { img.classList.add('hidden'); img.nextElementSibling.classList.remove('hidden'); };
+      img.src = img.dataset.src;
+    });
+
+    // Click a card: owned → select it; coins-tier unowned → handled by
+    // the buy button separately; achievement-tier unowned → no-op (it
+    // unlocks itself automatically, nothing to click).
+    grid.querySelectorAll('.av-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.av-buy-btn')) return; // handled below
+        const id = card.dataset.avatar;
+        if (card.dataset.owned !== '1') return;
+        if (Avatars.selectAvatar(state, id)) {
+          saveState();
+          Sound.click();
+          renderActiveAvatar();
+          renderAvatarsView();
+        }
+      });
+    });
+
+    grid.querySelectorAll('.av-buy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.buy;
+        const av = Avatars.getDef(id);
+        if (!av) return;
+        if ((state.user.coins || 0) < av.cost) {
+          showToast('NOT ENOUGH COINS', 'error');
+          return;
+        }
+        forgeConfirm(`Buy ${av.name} for ◎ ${av.cost}?`, () => {
+          const result = Avatars.purchase(state, id);
+          if (result.ok) {
+            saveState();
+            Sound.xpGain();
+            showToast(`${av.name} ACQUIRED`, 'success');
+            renderAvatarsView();
+          }
+        });
+      });
+    });
   }
 
   function renderShop() {
@@ -1645,7 +1936,7 @@
     // ── Render consumables ──
     const list   = $('shop-consumables-list');
     const freezes = state.user.streak.freezesAvailable || 0;
-    const maxFreeze = 2;
+    const maxFreeze = 3;
     const freezePrice = 150;
     const canAffordFreeze = coins >= freezePrice;
     const atMax = freezes >= maxFreeze;
@@ -1656,7 +1947,7 @@
         <div class="consumable-icon">🧊</div>
         <div class="consumable-info">
           <div class="consumable-name">STREAK FREEZE</div>
-          <div class="consumable-desc">Protects your streak if you miss a day. Max 2.</div>
+          <div class="consumable-desc">Protects your streak if you miss a day. Max 3.</div>
         </div>
         <div class="consumable-right">
           <div class="consumable-price">◎ ${freezePrice}</div>
@@ -1678,6 +1969,46 @@
         _showShopToast('STREAK FREEZE ACQUIRED');
       });
     });
+
+    // ── Render achievements ──
+    renderAchievements();
+  }
+
+  function renderAchievements() {
+    const list = $('shop-achievements-list');
+    if (!list || !window.Achievements) return;
+
+    const progress = Achievements.computeProgress(state);
+    const totalUnlocked = progress.reduce((sum, fam) => sum + fam.unlockedTiers.length, 0);
+    const totalPossible  = progress.length * 3;
+
+    const countEl = $('achievements-count');
+    if (countEl) countEl.textContent = `${totalUnlocked} / ${totalPossible}`;
+
+    list.innerHTML = progress.map(fam => {
+      const nextText = fam.nextTier
+        ? `${fam.nextTier.progress} / ${fam.nextTier.threshold} ${fam.unit} to ${fam.nextTier.tier.toUpperCase()}`
+        : `MAXED OUT`;
+      const pct = fam.nextTier
+        ? Math.min(100, Math.round((fam.nextTier.progress / fam.nextTier.threshold) * 100))
+        : 100;
+
+      const tierDots = fam.tiers.map(t => {
+        const icon = t.tier === 'bronze' ? '🥉' : t.tier === 'silver' ? '🥈' : '🥇';
+        return `<span class="ach-tier-dot ${t.unlocked ? 'unlocked' : ''}" title="${t.tier.toUpperCase()} — ${t.threshold} ${fam.unit} — ◎${t.coinReward}">${icon}</span>`;
+      }).join('');
+
+      return `
+        <div class="ach-card ${fam.unlockedTiers.length ? 'has-progress' : ''}">
+          <div class="ach-card-top">
+            <span class="ach-name">${escHtml(fam.name)}</span>
+            <span class="ach-tiers">${tierDots}</span>
+          </div>
+          <div class="ach-desc">${escHtml(fam.description)}</div>
+          <div class="ach-progress-track"><div class="ach-progress-fill" style="width:${pct}%"></div></div>
+          <div class="ach-progress-label">${nextText}</div>
+        </div>`;
+    }).join('');
   }
 
   let _toastTimer = null;
@@ -2112,23 +2443,53 @@
   // ══════════════════════════════════════════
   function bindEvents() {
 
-    // ── ONBOARDING / AUTH — Google only ──
-    $('btn-google-signin').addEventListener('click', async () => {
-      $('btn-google-signin').disabled = true;
+    // ── ONBOARDING / AUTH ──
+    const gBtn = $('btn-google-signin');
+    if (gBtn) gBtn.addEventListener('click', async () => {
+      gBtn.disabled = true;
       $('auth-loading').classList.remove('hidden');
-      $('google-signin-error').classList.add('hidden');
+      const errEl = $('google-signin-error');
+      if (errEl) errEl.classList.add('hidden');
 
       const result = await FB.signInWithGoogle();
 
       if (!result.ok && !result.pending) {
         $('auth-loading').classList.add('hidden');
-        $('btn-google-signin').disabled = false;
-        const errEl = $('google-signin-error');
-        errEl.textContent = result.error || 'Sign-in failed.';
-        errEl.classList.remove('hidden');
+        gBtn.disabled = false;
+        showAuthLoading(false);
+        if (errEl) {
+          errEl.textContent = result.error || 'Sign-in failed.';
+          errEl.classList.remove('hidden');
+        }
       }
-      // If ok or pending (mobile redirect), onAuthStateChanged handles the rest
     });
+
+    // Offline mode buttons (new)
+    const offBtn = $('btn-offline-enter');
+    if (offBtn) offBtn.addEventListener('click', () => {
+      Sound.click();
+      enterOfflineMode();
+    });
+    const skipBtn = $('btn-skip-auth');
+    if (skipBtn) skipBtn.addEventListener('click', () => {
+      Sound.click();
+      enterOfflineMode();
+    });
+    const offlineNameInput = $('input-offline-name');
+    const offlineStartBtn = $('btn-offline-start');
+    if (offlineNameInput && offlineStartBtn) {
+      offlineStartBtn.addEventListener('click', () => {
+        const v = offlineNameInput.value.trim();
+        Sound.click();
+        enterOfflineMode(v || 'OPERATIVE');
+      });
+      offlineNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const v = offlineNameInput.value.trim();
+          enterOfflineMode(v || 'OPERATIVE');
+        }
+      });
+    }
 
     // ── DASHBOARD ──
     $('btn-start-session').addEventListener('click', openIntention);
@@ -2151,12 +2512,14 @@
       // Update both switchers (dashboard + plan view)
       ['mode-forge', 'plan-mode-forge'].forEach(id => $$(id) && $$(id).classList.add('active'));
       ['mode-plan',  'plan-mode-plan' ].forEach(id => $$(id) && $$(id).classList.remove('active'));
+      setRailNav('dashboard');
       showView('dashboard');
       renderDashboard();
     }
     function switchToPlan() {
       ['mode-plan',  'plan-mode-plan' ].forEach(id => $$(id) && $$(id).classList.add('active'));
       ['mode-forge', 'plan-mode-forge'].forEach(id => $$(id) && $$(id).classList.remove('active'));
+      setRailNav('plan');
       renderPlanMode();
       showView('plan');
     }
@@ -2192,40 +2555,69 @@
       setTimeout(() => { renderSettings(); renderAccountInfo(); showView('settings'); }, 200);
     });
 
+    // PLAN reachable from drawer on mobile (top-bar mode-switcher moved to rail)
+    $('drawer-plan') && $('drawer-plan').addEventListener('click', () => {
+      closeDrawer();
+      setTimeout(() => switchToPlan(), 200);
+    });
+
+    // ── RAIL NAV (desktop sidebar) ──
+    // Highlights the active rail item; function-declaration-hoisted so switchTo* can call it.
+    function setRailNav(view) {
+      const map = {
+        dashboard: 'mode-forge', plan: 'mode-plan',
+        tasks: 'rail-tasks', history: 'rail-history',
+        shop: 'rail-shop', settings: 'rail-settings'
+      };
+      const activeId = map[view];
+      ['mode-forge','mode-plan','rail-tasks','rail-history','rail-shop','rail-settings']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.toggle('active', id === activeId);
+        });
+    }
+
+    $('rail-tasks') && $('rail-tasks').addEventListener('click', () => {
+      renderTaskList(); showView('tasks'); setRailNav('tasks');
+    });
+    $('rail-history') && $('rail-history').addEventListener('click', () => {
+      renderHistory(); showView('history'); setRailNav('history');
+    });
+    $('rail-shop') && $('rail-shop').addEventListener('click', () => {
+      renderShop(); showView('shop'); setRailNav('shop');
+    });
+    $('rail-avatar') && $('rail-avatar').addEventListener('click', () => {
+      renderAvatarsView(); showView('avatars');
+    });
+    $('rail-settings') && $('rail-settings').addEventListener('click', () => {
+      renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');
+    });
+
+    // ── COLLAPSIBLE RAIL (desktop sidebar) ──
+    $('btn-toggle-rail') && $('btn-toggle-rail').addEventListener('click', toggleRail);
+
     // Keep old btn-open-tasks as fallback (no longer in UI but safe to keep)
     $('btn-open-tasks') && $('btn-open-tasks').addEventListener('click', () => {
       renderTaskList();
       showView('tasks');
     });
 
-    // ── PILLAR CHIPS ──
-    function renderPillarChips() {
-      const row = $('pillar-chips-row');
-      if (!row) return;
-      const pillars = state.pillars || [];
-      const selected = _selectedPillar || (pillars[0] && pillars[0].id) || 'other';
-      row.innerHTML = pillars.map(p => `
-        <div class="pillar-chip ${p.id === selected ? 'selected' : ''}"
-             data-pillar="${p.id}"
-             style="--pillar-color:${p.color}">
-          <span class="pillar-chip-dot"></span>
-          ${p.name}
-        </div>`).join('');
-      row.querySelectorAll('.pillar-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-          _selectedPillar = chip.dataset.pillar;
-          renderPillarChips();
-        });
-      });
-    }
-
-    // Track selected pillar for task add
+    // Track selected pillar for task add (outer renderPillarChips now exists)
     _selectedPillar = (state.pillars && state.pillars[0]) ? state.pillars[0].id : 'other';
     renderPillarChips();
 
     $('btn-add-task').addEventListener('click', addTask);
     $('input-task').addEventListener('keydown', e => {
       if (e.key === 'Enter') addTask();
+    });
+
+    // Quick-add collapse toggle
+    $('btn-toggle-quick-add').addEventListener('click', () => {
+      const form   = $('quick-add-form');
+      const toggle = $('btn-toggle-quick-add');
+      const hidden = form.classList.toggle('hidden');
+      toggle.textContent = hidden ? '+ ADD QUEST' : '− COLLAPSE';
+      if (!hidden) $('input-task').focus();
     });
 
     // Difficulty buttons
@@ -2312,6 +2704,39 @@
       });
     });
 
+    // ── MID-SESSION PLAN DRAWER ──
+    $('btn-open-plan-drawer').addEventListener('click', () => {
+      Sound.click();
+      openPlanDrawer();
+    });
+
+    $('btn-close-plan-drawer').addEventListener('click', () => {
+      Sound.click();
+      closePlanDrawer();
+    });
+
+    $('plan-drawer-backdrop').addEventListener('click', () => {
+      closePlanDrawer();
+    });
+
+    $('btn-drawer-add-task').addEventListener('click', () => {
+      addTaskFromDrawer();
+    });
+
+    $('drawer-task-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTaskFromDrawer();
+    });
+
+    // Difficulty pill selection inside drawer
+    document.querySelectorAll('.drawer-diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _drawerDifficulty = parseFloat(btn.dataset.mult);
+        document.querySelectorAll('.drawer-diff-btn').forEach(b =>
+          b.classList.toggle('active', b === btn)
+        );
+      });
+    });
+
     // ── REWARD — task decision ──
     $('btn-task-done').addEventListener('click', () => {
       const task = state.tasks.find(t => t.id === sessionContext.taskId);
@@ -2361,79 +2786,12 @@
     });
 
     // ── SETTINGS ──
-    // ── PLAN BACK BUTTONS ──
-    $('btn-goals-back').addEventListener('click', () => {
-      Sound.click();
-      showPlanView('pillars');
-      renderPillarList();
-    });
-
-    $('btn-weeks-back').addEventListener('click', () => {
-      Sound.click();
-      showPlanView('goals');
-      renderGoalsList();
-    });
-
-    // ── GOAL FORM ──
-    $('btn-add-goal').addEventListener('click', () => openGoalForm(null));
-
-    $('btn-goal-cancel').addEventListener('click', () => {
-      $('goal-form').classList.add('hidden');
-      $('btn-add-goal').classList.remove('hidden');
-      _editingGoalId = null;
-    });
-
-    // Week count stepper
-    document.querySelectorAll('.week-count-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        _editingGoalWeekCount = Math.max(1, Math.min(52, _editingGoalWeekCount + parseInt(btn.dataset.delta)));
-        _updateWeekCountDisplay();
-      });
-    });
-
-    $('btn-goal-save').addEventListener('click', () => {
-      const title    = $('goal-title-input').value.trim();
-      const deadline = $('goal-deadline-input').value;
-
-      if (!title) { _showShopToast('ENTER A TITLE'); return; }
-
-      if (_editingGoalId) {
-        const g = state.goals.find(g => g.id === _editingGoalId);
-        if (g) { g.title = title; g.deadline = deadline; g.weekCount = _editingGoalWeekCount; }
-      } else {
-        if (!state.goals) state.goals = [];
-        const newGoalId = Storage.uuid();
-        state.goals.push({
-          id:        newGoalId,
-          pillarId:  _activePillarId,
-          title,
-          deadline,
-          weekCount: _editingGoalWeekCount,
-          createdAt: new Date().toISOString(),
-          status:    'active'
-        });
-        // Auto-generate weeks (no dates — user fills them in)
-        if (!state.weeks) state.weeks = [];
-        for (let i = 1; i <= _editingGoalWeekCount; i++) {
-          state.weeks.push({ id: Storage.uuid(), goalId: newGoalId, number: i, label: `WEEK ${i}`, fromDate: '', toDate: '' });
-        }
-      }
-
-      saveState();
-      Sound.click();
-      $('goal-form').classList.add('hidden');
-      $('btn-add-goal').classList.remove('hidden');
-      _editingGoalId = null;
-      renderGoalsList();
-    });
-
-    // ── WEEK FORM ──
-    $('btn-week-cancel').addEventListener('click', closeWeekForm);
-    $('btn-week-save').addEventListener('click', saveWeekForm);
-    $('week-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveWeekForm(); });
-
-    // ── MOVE TASK MODAL (mobile) ──
-    $('move-task-backdrop').addEventListener('click', closeMoveSheet);
+    // ── PLAN MODE ──
+    // Two surfaces only: OBJECTIVES and CALENDAR. Everything else that
+    // used to live here (pillar tab, goals tab, THIS WEEK board, TASKS
+    // duplicate, week form, mobile move sheet) was removed with the
+    // artificial-week model.
+    if (window.Plan) Plan.bind(_planContext());
 
     $('btn-settings-back').addEventListener('click', () => {
       showView('dashboard');
@@ -2470,12 +2828,18 @@
       saveState();
       $('pillar-form').classList.add('hidden');
       $('btn-add-pillar').classList.remove('hidden');
-      renderPillarList();
+      renderPlanMode();
       renderPillarChips();
       Sound.click();
     });
 
     $('btn-shop-back').addEventListener('click', () => {
+      Sound.click();
+      showView('dashboard');
+      renderDashboard();
+    });
+
+    $('btn-avatars-back') && $('btn-avatars-back').addEventListener('click', () => {
       Sound.click();
       showView('dashboard');
       renderDashboard();
@@ -2595,9 +2959,7 @@
     $('btn-reset-data').addEventListener('click', async () => {
       const confirmed = confirm('RESET ALL DATA?\n\nThis wipes your XP, levels, tasks and streak. Cannot be undone.');
       if (!confirmed) return;
-      state = Storage.defaultState();
-      await FB.deleteUserData();
-      Storage.save(state);
+      state = await Repository.clearState({ alsoCloud: FB.isSignedIn() });
       renderDashboard();
       renderAccountInfo();
       showView('dashboard');
@@ -2608,8 +2970,9 @@
     $('btn-signout').addEventListener('click', async () => {
       Timer.stop();
       await FB.signOut();
-      state = Storage.defaultState();
-      Storage.save(state);
+      // Don't touch their cloud data on sign-out — only reset the local
+      // view. They can sign back in later and pick up where they left off.
+      state = await Repository.clearState({ alsoCloud: false });
       // onAuthStateChanged fires → shows login screen
     });
 
@@ -2637,10 +3000,35 @@
       .replace(/"/g, '&quot;');
   }
 
+  let _toastTimer2 = null;
+  function showToast(msg, type = '', duration = 2000) {
+    const toast = $('toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.className = 'toast' + (type ? ' ' + type : '');
+    void toast.offsetWidth; // restart the transition
+    toast.classList.add('visible');
+    if (_toastTimer2) clearTimeout(_toastTimer2);
+    _toastTimer2 = setTimeout(() => toast.classList.remove('visible'), duration);
+  }
+
   function flashElement(el, text) {
-    const orig = el.textContent;
-    el.textContent = text;
-    setTimeout(() => { el.textContent = orig; }, 1200);
+    if (!el) return;
+    // overlay a flash label WITHOUT destroying the element's real content
+    el.querySelector('.flash-label')?.remove();
+    el.classList.add('flash-host'); // position: relative so the overlay anchors here
+    const flash = document.createElement('span');
+    flash.className = 'flash-label';
+    flash.textContent = text;
+    el.appendChild(flash);
+    requestAnimationFrame(() => flash.classList.add('show'));
+    setTimeout(() => {
+      flash.classList.remove('show');
+      setTimeout(() => {
+        flash.remove();
+        el.classList.remove('flash-host');
+      }, 300);
+    }, 1200);
   }
 
   function renderAccountInfo() {
