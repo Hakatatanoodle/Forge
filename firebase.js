@@ -6,12 +6,12 @@
 // ═══════════════════════════════════════════════════════
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBpZzcvyVbJX-Yfy-h-2xBgiG_5OPN9H4c",
-  authDomain: "forge-engine-1ffa4.firebaseapp.com",
-  projectId: "forge-engine-1ffa4",
-  storageBucket: "forge-engine-1ffa4.firebasestorage.app",
-  messagingSenderId: "951248629198",
-  appId: "1:951248629198:web:abbaa56d6352e51fa38f9f"
+  apiKey: "AIzaSyDjh5v_TNjmOGIRDTO2GOG8mIZ9V0cLbJA",
+  authDomain: "forge-8e1b2.firebaseapp.com",
+  projectId: "forge-8e1b2",
+  storageBucket: "forge-8e1b2.firebasestorage.app",
+  messagingSenderId: "419899426693",
+  appId: "1:419899426693:web:ad0409f01e01722fe826ec"
 };
 
 const FB = (() => {
