@@ -2350,6 +2350,42 @@ body.no-rail #rail { display: none !important; }
   transform: scale(0.98);
 }
 
+/* Hero treatment — this is the primary, obvious CTA */
+.btn-google-hero {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 24px var(--accent-glow);
+  padding: 20px;
+  font-size: 16px;
+}
+.btn-google-hero:hover {
+  border-color: #4285F4;
+  box-shadow: 0 0 28px rgba(66, 133, 244, 0.22);
+}
+
+/* Guest mode — intentionally understated. A single small link, not a
+   competing button, so it has to be sought out rather than defaulted
+   to. Revealing it expands the actual name input + start button. */
+.guest-reveal-row {
+  text-align: center;
+  margin-top: 18px;
+}
+.guest-reveal-link {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.guest-reveal-link:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
 .google-icon {
   flex-shrink: 0;
 }

@@ -74,7 +74,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v13.4</span>
+        <span class="rail-version">FORGE v13.5</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -91,12 +91,12 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v13.4</span>
+          <span class="logo-version">v13.5</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
         <div class="onboard-form">
-          <button id="btn-google-signin" class="btn-google" style="display:none">
+          <button id="btn-google-signin" class="btn-google btn-google-hero" style="display:none">
             <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -105,20 +105,24 @@
             </svg>
             CONTINUE WITH GOOGLE
           </button>
-          <!-- Offline / Guest path — fixes unusable when Firebase offline -->
-          <div class="offline-block" id="offline-block" style="display:none">
-            <div class="offline-divider"><span>OR</span></div>
+
+          <!-- Guest path — intentionally understated. Not a competing
+               option, a fallback you have to look for. Collapsed to a
+               single small link until clicked. -->
+          <div class="guest-reveal-row" id="guest-reveal-row" style="display:none">
+            <button id="btn-guest-reveal" class="guest-reveal-link" type="button">Continue as Guest</button>
+          </div>
+
+          <div class="offline-block hidden" id="offline-block">
             <div class="offline-input-row">
-              <input type="text" id="input-offline-name" class="text-input" placeholder="OPERATIVE NAME" maxlength="20" />
-              <button id="btn-offline-start" class="btn-secondary">▶ GO</button>
+              <input type="text" id="input-offline-name" class="text-input" placeholder="GUEST NAME" maxlength="20" />
+              <button id="btn-offline-enter" class="btn-secondary">▶ START</button>
             </div>
-            <button id="btn-offline-enter" class="btn-ghost btn-full offline-enter-btn">ENTER OFFLINE MODE</button>
             <div style="text-align:center;margin-top:6px">
               <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--text-dim)">LOCAL ONLY · NO CLOUD SYNC</span>
             </div>
           </div>
-          <!-- Quick skip for dev -->
-          <button id="btn-skip-auth" class="btn-ghost" style="display:none;margin-top:8px;font-size:10px;letter-spacing:2px">SKIP → ENTER OFFLINE</button>
+
           <div id="google-signin-error" class="auth-error hidden"></div>
           <div id="auth-loading" class="auth-loading">
             <span class="auth-loading-text">CONNECTING...</span>
@@ -183,7 +187,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v13.4</span>
+          <span id="drawer-version" class="drawer-version">FORGE v13.5</span>
         </div>
       </div>
 
@@ -1070,7 +1074,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v13.4</div>
+  <div class="version-stamp">FORGE v13.5</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>

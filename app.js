@@ -140,26 +140,22 @@
 
   let _isOfflineMode = false;
   function showAuthLoading(show) {
-    const loading = $('auth-loading');
-    const btn     = $('btn-google-signin');
-    const offBtn  = $('btn-offline-enter');
-    const skipBtn = $('btn-skip-auth');
-    const offBlock = $('offline-block');
-    const nameRow = $('input-offline-name')?.parentElement?.parentElement || offBlock;
+    const loading  = $('auth-loading');
+    const btn      = $('btn-google-signin');
+    const guestRow = $('guest-reveal-row');
     if (!loading || !btn) return;
     if (show && !_isOfflineMode) {
       loading.classList.remove('hidden');
       btn.style.display = 'none';
-      if (offBlock) offBlock.style.display = 'none';
-      if (offBtn) offBtn.style.display = 'none';
-      if (skipBtn) skipBtn.style.display = 'none';
+      if (guestRow) guestRow.style.display = 'none';
     } else {
       loading.classList.add('hidden');
       btn.style.display = '';
       btn.disabled = false;
-      if (offBlock) offBlock.style.display = '';
-      if (offBtn) offBtn.style.display = '';
-      if (skipBtn) skipBtn.style.display = '';
+      // Guest mode is opt-in, not a competing choice — reveal only the
+      // small link. The actual name input + start button (offline-block)
+      // stay collapsed until btn-guest-reveal is clicked.
+      if (guestRow) guestRow.style.display = '';
     }
   }
 
@@ -2465,27 +2461,36 @@
     });
 
     // Offline mode buttons (new)
+    // Guest mode — intentionally tucked away. The small link reveals
+    // the name input + single start button; nothing else is shown by
+    // default (see showAuthLoading()).
+    const guestReveal = $('btn-guest-reveal');
+    const offBlock     = $('offline-block');
+    const guestRow     = $('guest-reveal-row');
+    if (guestReveal && offBlock) {
+      guestReveal.addEventListener('click', () => {
+        Sound.click();
+        guestRow.style.display = 'none';
+        offBlock.classList.remove('hidden');
+        const nameInput = $('input-offline-name');
+        if (nameInput) setTimeout(() => nameInput.focus(), 60);
+      });
+    }
+
     const offBtn = $('btn-offline-enter');
-    if (offBtn) offBtn.addEventListener('click', () => {
-      Sound.click();
-      enterOfflineMode();
-    });
-    const skipBtn = $('btn-skip-auth');
-    if (skipBtn) skipBtn.addEventListener('click', () => {
-      Sound.click();
-      enterOfflineMode();
-    });
     const offlineNameInput = $('input-offline-name');
-    const offlineStartBtn = $('btn-offline-start');
-    if (offlineNameInput && offlineStartBtn) {
-      offlineStartBtn.addEventListener('click', () => {
-        const v = offlineNameInput.value.trim();
+    if (offBtn) {
+      offBtn.addEventListener('click', () => {
+        const v = offlineNameInput ? offlineNameInput.value.trim() : '';
         Sound.click();
         enterOfflineMode(v || 'OPERATIVE');
       });
+    }
+    if (offlineNameInput) {
       offlineNameInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           const v = offlineNameInput.value.trim();
+          Sound.click();
           enterOfflineMode(v || 'OPERATIVE');
         }
       });
