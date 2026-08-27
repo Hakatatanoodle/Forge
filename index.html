@@ -17,6 +17,17 @@
   <!-- GRAIN OVERLAY -->
   <div class="grain"></div>
 
+  <!-- UPDATE AVAILABLE BANNER — global, sits above everything. Shown
+       when a new service worker version has installed itself in the
+       background while this page was already open. Never auto-reloads
+       (would be jarring mid-session) — always requires the person to
+       tap REFRESH themselves. -->
+  <div id="update-banner" class="update-banner hidden">
+    <span class="update-banner-text">🔄 A new version of FORGE is ready.</span>
+    <button id="btn-update-refresh" class="update-banner-btn">REFRESH</button>
+    <button id="btn-update-dismiss" class="update-banner-dismiss" aria-label="Dismiss">✕</button>
+  </div>
+
   <!-- APP WRAPPER -->
   <div id="app">
 
@@ -74,7 +85,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v13.5</span>
+        <span class="rail-version">FORGE v13.6</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -91,7 +102,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v13.5</span>
+          <span class="logo-version">v13.6</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -187,7 +198,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v13.5</span>
+          <span id="drawer-version" class="drawer-version">FORGE v13.6</span>
         </div>
       </div>
 
@@ -1074,7 +1085,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v13.5</div>
+  <div class="version-stamp">FORGE v13.6</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
@@ -1105,9 +1116,59 @@
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('FORGE: SW registered'))
+        .then(reg => {
+          console.log('FORGE: SW registered');
+
+          // A new SW version was found and finished installing WHILE
+          // this page already had an active controller — that means
+          // it's a genuine update (not the very first install ever),
+          // so surface it instead of silently sitting there.
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBanner();
+              }
+            });
+          });
+        })
         .catch(e => console.log('FORGE: SW failed', e));
+
+      // Our SW calls skipWaiting()+clients.claim() on its own, so the
+      // new version activates itself in the background automatically —
+      // no message-passing handshake needed here. Once it does take
+      // over, do a single clean reload so the already-open page (which
+      // is showing whatever it loaded at open time) actually shows the
+      // new content. Guarded so this can only fire once per page life.
+      let _swRefreshed = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_swRefreshed) return;
+        _swRefreshed = true;
+        window.location.reload();
+      });
     }
+
+    function showUpdateBanner() {
+      const banner = document.getElementById('update-banner');
+      if (banner) banner.classList.remove('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const refreshBtn = document.getElementById('btn-update-refresh');
+      const dismissBtn = document.getElementById('btn-update-dismiss');
+      const banner     = document.getElementById('update-banner');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+          // The new SW is already active by this point (it self-activates
+          // in the background) — this reload is what actually shows it.
+          window.location.reload();
+        });
+      }
+      if (dismissBtn && banner) {
+        dismissBtn.addEventListener('click', () => banner.classList.add('hidden'));
+      }
+    });
   </script>
 
 </body>

@@ -4160,6 +4160,55 @@ body.no-rail #rail { display: none !important; }
 }
 
 
+/* ── Update available banner ── */
+.update-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900; /* above everything, including toasts and modals */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--bg-3);
+  border-top: 1px solid var(--accent);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+.update-banner.hidden { display: none; }
+.update-banner-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+.update-banner-btn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 6px 16px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.update-banner-btn:hover { opacity: 0.85; }
+.update-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.update-banner-dismiss:hover { color: var(--text-primary); }
+
 /* ── General toast (Minecraft-advancement style) ── */
 .toast {
   position: fixed;
