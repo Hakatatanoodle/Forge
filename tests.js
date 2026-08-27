@@ -149,6 +149,19 @@
       log('✓ streak self-heal ignores same-day duplicates');
     }
 
+    // 8c. Freeze consumption must not be masked by the same-call freeze-
+    // earning rule. Regression test for a real bug: a freeze bridging a
+    // gap onto a multiple of 7 (e.g. 13 -> 14) used to get silently
+    // re-granted in the exact same calculation, making the spend
+    // invisible even though it genuinely happened.
+    {
+      let streak = { current: 13, longest: 13, lastActiveDate: '2026-08-24', freezesAvailable: 1, lastFreezeUsed: null };
+      const result = XP.updateStreak(streak, '2026-08-26'); // one day skipped in between
+      assert(result.current === 14, 'freeze correctly bridges the gap, streak reaches 14 (got ' + result.current + ')');
+      assert(result.freezesAvailable === 0, 'freeze is actually spent (0), not silently re-earned because 14 is a multiple of 7 (got ' + result.freezesAvailable + ')');
+      log('✓ freeze consumption is not masked by the same-day freeze-earning rule');
+    }
+
     // 9. Timer format
     const fmt = Timer.format(125);
     assert(fmt.mm === '02' && fmt.ss === '05', 'format 125s');

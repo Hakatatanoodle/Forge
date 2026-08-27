@@ -143,7 +143,8 @@ const XP = (() => {
     const today = todayStr || new Date().toISOString().split('T')[0];
     const last = streak.lastActiveDate;
 
-    let { current, longest, freezesAvailable } = streak;
+    let current, longest, freezesAvailable, freezeSpentThisCall = false;
+    ({ current, longest, freezesAvailable } = streak);
 
     const yesterday = getPreviousDay(today);
 
@@ -166,6 +167,7 @@ const XP = (() => {
       if (dayGap === 2 && freezesAvailable > 0) {
         current += 1;
         freezesAvailable -= 1;
+        freezeSpentThisCall = true;
         streak.lastFreezeUsed = today; // mark so dashboard shows frozen state
         if (current > longest) longest = current;
       } else {
@@ -173,8 +175,12 @@ const XP = (() => {
       }
     }
 
-    // Earn a new freeze every 7 consecutive days
-    if (current > 0 && current % 7 === 0) {
+    // Earn a new freeze every 7 consecutive days — but NOT on the same
+    // day one was just spent to bridge a gap. Without this guard, a
+    // freeze that happens to bridge you onto a multiple of 7 (e.g.
+    // 13 -> 14) gets silently re-granted in the same calculation,
+    // making the spend invisible even though it genuinely happened.
+    if (!freezeSpentThisCall && current > 0 && current % 7 === 0) {
       freezesAvailable = Math.min(freezesAvailable + 1, 3); // max 3 freezes
     }
 
