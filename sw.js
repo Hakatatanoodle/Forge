@@ -4,7 +4,7 @@
 // Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'forge-v14-0';
+const CACHE_VERSION = 'forge-v14-1';
 const CACHE_NAME    = CACHE_VERSION;
 
 const APP_FILES = [

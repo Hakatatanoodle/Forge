@@ -44,6 +44,7 @@
     plan:       $('view-plan'),
     avatars:    $('view-avatars'),
     leaderboard: $('view-leaderboard'),
+    welcome:     $('view-welcome'),
   };
 
   // ══════════════════════════════════════════
@@ -53,7 +54,7 @@
     Object.values(views).forEach(v => v.classList.remove('active'));
     if (views[name]) views[name].classList.add('active');
     // Hide the rail on chrome-free, focused moments
-    document.body.classList.toggle('no-rail', ['onboarding','session','break','reward','summary'].indexOf(name) !== -1);
+    document.body.classList.toggle('no-rail', ['onboarding','welcome','session','break','reward','summary'].indexOf(name) !== -1);
   }
 
   // ══════════════════════════════════════════
@@ -99,24 +100,52 @@
     const { state: loaded, source } = await Repository.loadState({ signedIn: true });
     state = loaded;
 
+    let needsWelcome = false;
+
     if (source === 'cloud') {
       // Returning user — their cloud data is now loaded and migrated.
       // Clean up legacy sprints data (removed in v11)
       if (state.sprints) delete state.sprints;
       checkDayReset();
     } else {
-      // First time signing in with this Google account (no cloud doc yet)
-      // — name them from their Google profile if we don't already have a
-      // name (e.g. from prior local guest use).
+      // First time signing in with this Google account (no cloud doc yet).
       if (!state.user.name) {
+        // Genuinely brand new — no prior guest progress either. Give
+        // them a sensible pre-filled guess from their Google profile,
+        // but let them confirm/edit it via a short welcome step rather
+        // than silently locking it in and making them dig through
+        // System Config later if they don't like it.
         state.user.name = user.displayName
           ? user.displayName.split(' ')[0].toUpperCase()
           : 'OPERATIVE';
         state.user.rank = XP.getRank(1);
+        needsWelcome = true;
       }
+      // else: they already had a name from prior guest-mode usage on
+      // this device — this is a guest→cloud link-up, not a new person.
+      // Don't interrupt them with a welcome screen for that.
       checkDayReset();
     }
 
+    if (needsWelcome) {
+      showAuthLoading(false);
+      showWelcomeStep(user);
+    } else {
+      await _finishSignInFlow();
+    }
+  }
+
+  // Short, skippable confirm-your-name step — only shown to genuinely
+  // brand new accounts (see onAuthStateChanged above). Everything that
+  // used to run unconditionally right after sign-in now waits here.
+  function showWelcomeStep(user) {
+    const nameInput = $('welcome-name-input');
+    if (nameInput) nameInput.value = state.user.name;
+    showView('welcome');
+    setTimeout(() => { if (nameInput) nameInput.focus(); if (nameInput) nameInput.select(); }, 80);
+  }
+
+  async function _finishSignInFlow() {
     Sound.setEnabled(state.settings.soundEnabled !== false);
     // Migrate old hardcoded tags → pillar ids
     const TAG_MIGRATE = { finals: 'academics', game: 'gamedev', urgent: 'academics' };
@@ -727,7 +756,7 @@
   // cloud presence to compete with, so there's nothing to sync.
   let _lastLeaderboardSync = null;
 
-  function syncLeaderboard() {
+  async function syncLeaderboard() {
     if (!window.Leaderboard || !FB.isSignedIn()) return;
     const user = FB.getCurrentUser();
     if (!user) return;
@@ -735,8 +764,16 @@
     // Skip the write entirely if nothing rank-relevant actually moved —
     // avoids syncing on every trivial action (renaming a task, etc.)
     if (!Leaderboard.hasChanged(_lastLeaderboardSync, entry)) return;
-    _lastLeaderboardSync = entry;
-    FB.syncLeaderboardEntry(entry); // fire-and-forget; failures are non-critical and already logged in firebase.js
+
+    const result = await FB.syncLeaderboardEntry(entry);
+    if (result.ok) {
+      // Only remember this as "synced" once it actually succeeded —
+      // otherwise a rejected/failed write would be silently treated as
+      // done and never retried on the next opportunity.
+      _lastLeaderboardSync = entry;
+    } else {
+      console.warn('FORGE: leaderboard sync failed — will retry on next change');
+    }
   }
 
   // Re-render Plan Mode whenever tasks change elsewhere (queue, dashboard,
@@ -2536,6 +2573,23 @@
         }
       }
     });
+
+    // Welcome step — confirm/edit the name for a genuinely brand new
+    // account (see onAuthStateChanged / showWelcomeStep).
+    const welcomeBtn = $('btn-welcome-continue');
+    const welcomeInput = $('welcome-name-input');
+    if (welcomeBtn && welcomeInput) {
+      const proceed = async () => {
+        const v = welcomeInput.value.trim();
+        state.user.name = (v || 'OPERATIVE').toUpperCase().slice(0, 20);
+        Sound.click();
+        await _finishSignInFlow();
+      };
+      welcomeBtn.addEventListener('click', proceed);
+      welcomeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') proceed();
+      });
+    }
 
     // Offline mode buttons (new)
     // Guest mode — intentionally tucked away. The small link reveals

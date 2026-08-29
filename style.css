@@ -245,6 +245,69 @@ body.no-rail #rail { display: none !important; }
 }
 
 /* ══════════════════════════════
+   WELCOME VIEW (first-time Google sign-in)
+══════════════════════════════ */
+.welcome-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 40px 24px;
+  text-align: center;
+  gap: 6px;
+}
+.welcome-logo {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 32px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-shadow: 0 0 24px var(--accent-glow);
+  margin-bottom: 12px;
+}
+.welcome-heading {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+.welcome-sub {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-dim);
+  max-width: 300px;
+  margin: 8px 0 20px;
+  line-height: 1.5;
+}
+.welcome-input-row {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 16px;
+}
+.welcome-input {
+  text-align: center;
+  font-size: 15px;
+  letter-spacing: 2px;
+}
+.welcome-continue-btn {
+  width: 100%;
+  max-width: 320px;
+  font-size: 14px;
+  letter-spacing: 3px;
+  padding: 14px;
+}
+.welcome-footnote {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  margin-top: 14px;
+}
+
+/* ══════════════════════════════
    SHARED FORM ELEMENTS
 ══════════════════════════════ */
 .field-label {
