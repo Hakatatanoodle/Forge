@@ -77,7 +77,14 @@ const FB = (() => {
       if (e.code === 'auth/popup-closed-by-user') {
         return { ok: false, error: 'Sign-in cancelled.' };
       }
-      return { ok: false, error: 'Sign-in failed. Check your connection.' };
+      if (e.code === 'auth/popup-blocked') {
+        return { ok: false, error: 'Popup was blocked by your browser. Allow popups for this site and try again.' };
+      }
+      // Surface the real Firebase error code/message rather than a
+      // generic one — this is the only way to actually diagnose auth
+      // config issues (unauthorized domain, provider not enabled, etc).
+      console.error('FORGE: Google sign-in failed', e.code, e.message);
+      return { ok: false, error: `Sign-in failed: ${e.code || e.message || 'unknown error'}` };
     }
   }
 
@@ -134,12 +141,52 @@ const FB = (() => {
     } catch(e) { return { ok: false }; }
   }
 
+  // ── LEADERBOARD: SYNC OWN ENTRY ──
+  // Writes to a SEPARATE, small public collection — never the private
+  // users/{uid} document. See leaderboard.js header for the full
+  // reasoning on what is and isn't exposed here.
+  async function syncLeaderboardEntry(entry) {
+    if (!_currentUser) return { ok: false };
+    try {
+      await _db.collection('leaderboard').doc(_currentUser.uid).set({
+        ...entry,
+        uid: _currentUser.uid, // always trust our own auth uid, not whatever was passed in
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      return { ok: true };
+    } catch(e) {
+      console.warn('FORGE: Leaderboard sync failed (offline, or rules rejected it)', e.message);
+      return { ok: false };
+    }
+  }
+
+  // ── LEADERBOARD: FETCH TOP ENTRIES ──
+  // metricField must be one of leaderboard.js's METRICS[].field values
+  // ('level' | 'streak' | 'totalHours'). Single-field orderBy() queries
+  // don't require a composite index in Firestore, so this works with
+  // zero extra console setup.
+  async function getLeaderboard(metricField, limitCount) {
+    try {
+      const snap = await _db.collection('leaderboard')
+        .orderBy(metricField, 'desc')
+        .limit(limitCount || 50)
+        .get();
+      const rows = [];
+      snap.forEach(doc => rows.push(doc.data()));
+      return { ok: true, rows };
+    } catch(e) {
+      console.warn('FORGE: Leaderboard fetch failed', e.message);
+      return { ok: false, rows: [] };
+    }
+  }
+
   function getCurrentUser() { return _currentUser; }
   function isSignedIn()     { return !!_currentUser; }
 
   return {
     init, signInWithGoogle, handleRedirectResult,
     signOut, saveState, loadState, deleteUserData,
+    syncLeaderboardEntry, getLeaderboard,
     getCurrentUser, isSignedIn
   };
 

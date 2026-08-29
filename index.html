@@ -81,11 +81,12 @@
         <button class="rail-nav-item" id="rail-tasks"><span class="nav-ico">⊞</span><span class="nav-label">TASK QUEUE</span></button>
         <button class="rail-nav-item" id="rail-history"><span class="nav-ico">◫</span><span class="nav-label">COMBAT LOG</span></button>
         <button class="rail-nav-item" id="rail-shop"><span class="nav-ico">◈</span><span class="nav-label">ARMORY</span></button>
+        <button class="rail-nav-item" id="rail-leaderboard"><span class="nav-ico">🏆</span><span class="nav-label">LEADERBOARD</span></button>
         <button class="rail-nav-item" id="rail-settings"><span class="nav-ico">⚙</span><span class="nav-label">SYSTEM CONFIG</span></button>
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v13.7</span>
+        <span class="rail-version">FORGE v14.0</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -102,7 +103,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v13.7</span>
+          <span class="logo-version">v14.0</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -188,6 +189,14 @@
             </div>
             <span class="drawer-nav-arrow">→</span>
           </button>
+          <button class="drawer-nav-item" id="drawer-leaderboard">
+            <span class="drawer-nav-icon">🏆</span>
+            <div class="drawer-nav-text">
+              <span class="drawer-nav-label">LEADERBOARD</span>
+              <span class="drawer-nav-sub">See how you rank</span>
+            </div>
+            <span class="drawer-nav-arrow">→</span>
+          </button>
           <button class="drawer-nav-item" id="drawer-settings">
             <span class="drawer-nav-icon">⚙</span>
             <div class="drawer-nav-text">
@@ -198,7 +207,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v13.7</span>
+          <span id="drawer-version" class="drawer-version">FORGE v14.0</span>
         </div>
       </div>
 
@@ -891,6 +900,36 @@
       </div>
     </div>
 
+    <!-- ════════════════════════════════════════
+         VIEW: LEADERBOARD
+    ════════════════════════════════════════ -->
+    <div id="view-leaderboard" class="view">
+      <div class="lb-container">
+
+        <div class="lb-header">
+          <button id="btn-leaderboard-back" class="icon-btn">← BACK</button>
+          <span class="lb-title">LEADERBOARD</span>
+        </div>
+
+        <div class="lb-tabs">
+          <button class="lb-tab active" id="lb-tab-streak" data-metric="streak">STREAK</button>
+          <button class="lb-tab" id="lb-tab-level" data-metric="level">LEVEL</button>
+          <button class="lb-tab" id="lb-tab-hours" data-metric="hours">HOURS</button>
+        </div>
+
+        <!-- Shown only when signed in — leaderboard requires a cloud account -->
+        <div id="lb-signed-out" class="lb-signed-out hidden">
+          <span class="lb-signed-out-icon">🏆</span>
+          <p class="lb-signed-out-text">Sign in with Google to compete on the leaderboard.<br/>Guest mode progress stays local, just for you.</p>
+        </div>
+
+        <div id="lb-list" class="lb-list">
+          <!-- Rendered by JS -->
+        </div>
+
+      </div>
+    </div>
+
   <!-- Custom confirm modal -->
   <div id="forge-confirm-backdrop" class="forge-confirm-backdrop hidden">
     <div class="forge-confirm-modal">
@@ -1085,7 +1124,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v13.7</div>
+  <div class="version-stamp">FORGE v14.0</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
@@ -1110,6 +1149,7 @@
   <script src="repository.js"></script>
   <script src="achievements.js"></script>
   <script src="avatars.js"></script>
+  <script src="leaderboard.js"></script>
   <script src="calendar.js"></script>
   <script src="plan.js"></script>
   <script src="app.js"></script>

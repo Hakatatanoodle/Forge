@@ -34,7 +34,7 @@ w.AudioContext = w.webkitAudioContext = function(){
 
 // Classic scripts share one global lexical scope in a browser; concatenate
 // so top-level `const Sound` etc. are visible across files as they really are.
-const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','achievements.js','avatars.js','calendar.js','plan.js','app.js']
+const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','achievements.js','avatars.js','leaderboard.js','calendar.js','plan.js','app.js']
   .map(f => fs.readFileSync('./'+f,'utf8')).join('\n;\n');
 try { w.eval(bundle); } catch(e){ errs.push('LOAD: '+e.message); }
 
@@ -441,6 +441,49 @@ setTimeout(async () => {
       if (!lockedCard.classList.contains('locked')) throw new Error('unowned achievement avatar missing locked class');
       if (!lockedCard.querySelector('.av-tag-locked')) throw new Error('locked avatar missing requirement tag');
     }
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // LEADERBOARD — end-to-end UI integration
+  //
+  // This jsdom harness runs entirely in guest/offline mode (Firebase
+  // can't actually authenticate here — see the harmless init warning
+  // above). That means these steps correctly exercise the SIGNED-OUT
+  // path, which is exactly what every guest-mode user sees. Full
+  // metric-calculation and entry-building logic is covered exhaustively
+  // in tests.leaderboard.js (Node-only, no DOM needed there).
+  // ═══════════════════════════════════════════════════════
+
+  await tryStep('leaderboard view opens from rail', () => {
+    d.getElementById('rail-leaderboard').click();
+    const view = d.getElementById('view-leaderboard');
+    if (!view || !view.classList.contains('active')) throw new Error('leaderboard view did not open');
+  });
+
+  await tryStep('signed-out state shows correctly (guest mode has no cloud presence)', () => {
+    const signedOut = d.getElementById('lb-signed-out');
+    const list       = d.getElementById('lb-list');
+    if (!signedOut || signedOut.classList.contains('hidden')) {
+      throw new Error('signed-out message should be visible in guest mode');
+    }
+    if (list && list.innerHTML.includes('lb-row')) {
+      throw new Error('leaderboard rows should not render while signed out');
+    }
+  });
+
+  await tryStep('tabs switch active state even while signed out', () => {
+    const levelTab = d.getElementById('lb-tab-level');
+    if (!levelTab) throw new Error('level tab not found');
+    levelTab.click();
+    if (!levelTab.classList.contains('active')) throw new Error('level tab did not become active on click');
+    const streakTab = d.getElementById('lb-tab-streak');
+    if (streakTab.classList.contains('active')) throw new Error('streak tab should no longer be active after switching to level');
+  });
+
+  await tryStep('leaderboard back button returns to dashboard', () => {
+    d.getElementById('btn-leaderboard-back').click();
+    const dash = d.getElementById('view-dashboard');
+    if (!dash || !dash.classList.contains('active')) throw new Error('back button did not return to dashboard');
   });
 
   console.log(JSON.stringify(results,null,1));

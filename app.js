@@ -43,6 +43,7 @@
     shop:       $('view-shop'),
     plan:       $('view-plan'),
     avatars:    $('view-avatars'),
+    leaderboard: $('view-leaderboard'),
   };
 
   // ══════════════════════════════════════════
@@ -125,6 +126,10 @@
     applyTheme(state.user.activeTheme || 'forge');
     applyRailCollapsed();
     showAuthLoading(false);
+
+    // Push an initial/updated leaderboard entry now that we know who
+    // this is — don't wait for the next session/task completion.
+    syncLeaderboard();
 
     // Check if today is summary day and this week hasn't been shown
     if (_shouldShowSummary()) {
@@ -711,6 +716,27 @@
       });
       if (avatarUnlocks.length) Sound.levelUp();
     }
+
+    syncLeaderboard();
+  }
+
+  // ══════════════════════════════════════════
+  // LEADERBOARD
+  // ══════════════════════════════════════════
+  // Only ever runs for signed-in users — guest/offline mode has no
+  // cloud presence to compete with, so there's nothing to sync.
+  let _lastLeaderboardSync = null;
+
+  function syncLeaderboard() {
+    if (!window.Leaderboard || !FB.isSignedIn()) return;
+    const user = FB.getCurrentUser();
+    if (!user) return;
+    const entry = Leaderboard.buildEntry(state, user.uid);
+    // Skip the write entirely if nothing rank-relevant actually moved —
+    // avoids syncing on every trivial action (renaming a task, etc.)
+    if (!Leaderboard.hasChanged(_lastLeaderboardSync, entry)) return;
+    _lastLeaderboardSync = entry;
+    FB.syncLeaderboardEntry(entry); // fire-and-forget; failures are non-critical and already logged in firebase.js
   }
 
   // Re-render Plan Mode whenever tasks change elsewhere (queue, dashboard,
@@ -1845,6 +1871,57 @@
     });
   }
 
+  // ══════════════════════════════════════════
+  // LEADERBOARD VIEW
+  // ══════════════════════════════════════════
+  let _lbActiveMetric = 'streak';
+
+  async function renderLeaderboardView(metric) {
+    if (metric) _lbActiveMetric = metric;
+    if (!window.Leaderboard) return;
+
+    // Tab active state
+    document.querySelectorAll('.lb-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.metric === _lbActiveMetric);
+    });
+
+    const signedOutEl = $('lb-signed-out');
+    const listEl       = $('lb-list');
+
+    if (!FB.isSignedIn()) {
+      if (signedOutEl) signedOutEl.classList.remove('hidden');
+      if (listEl) listEl.innerHTML = '';
+      return;
+    }
+    if (signedOutEl) signedOutEl.classList.add('hidden');
+    if (listEl) listEl.innerHTML = `<div class="lb-loading">Loading rankings...</div>`;
+
+    const metricDef = Leaderboard.METRICS.find(m => m.id === _lbActiveMetric) || Leaderboard.METRICS[0];
+    const result = await FB.getLeaderboard(metricDef.field, 50);
+    if (!listEl) return;
+
+    if (!result.ok || !result.rows.length) {
+      listEl.innerHTML = `<div class="lb-empty">No rankings yet — be the first to show up here.</div>`;
+      return;
+    }
+
+    const myUid = FB.getCurrentUser() ? FB.getCurrentUser().uid : null;
+
+    listEl.innerHTML = result.rows.map((row, i) => {
+      const rank  = i + 1;
+      const isMe  = row.uid === myUid;
+      const value = metricDef.id === 'hours' ? `${row.totalHours ?? 0}` : (row[metricDef.field] ?? 0);
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+
+      return `
+        <div class="lb-row ${isMe ? 'is-me' : ''}">
+          <span class="lb-rank">${medal || `#${rank}`}</span>
+          <span class="lb-name">${escHtml(row.name || 'OPERATIVE')}${isMe ? ' (you)' : ''}</span>
+          <span class="lb-value">${value}${metricDef.unit ? ' ' + metricDef.unit : ''}</span>
+        </div>`;
+    }).join('');
+  }
+
   function renderShop() {
     const coins    = state.user.coins || 0;
     const unlocked = state.user.unlockedThemes || ['forge', 'venom'];
@@ -2555,6 +2632,11 @@
       setTimeout(() => { renderShop(); showView('shop'); }, 200);
     });
 
+    $('drawer-leaderboard') && $('drawer-leaderboard').addEventListener('click', () => {
+      closeDrawer();
+      setTimeout(() => { renderLeaderboardView(); showView('leaderboard'); }, 200);
+    });
+
     $('drawer-settings').addEventListener('click', () => {
       closeDrawer();
       setTimeout(() => { renderSettings(); renderAccountInfo(); showView('settings'); }, 200);
@@ -2572,10 +2654,11 @@
       const map = {
         dashboard: 'mode-forge', plan: 'mode-plan',
         tasks: 'rail-tasks', history: 'rail-history',
-        shop: 'rail-shop', settings: 'rail-settings'
+        shop: 'rail-shop', settings: 'rail-settings',
+        leaderboard: 'rail-leaderboard'
       };
       const activeId = map[view];
-      ['mode-forge','mode-plan','rail-tasks','rail-history','rail-shop','rail-settings']
+      ['mode-forge','mode-plan','rail-tasks','rail-history','rail-shop','rail-settings','rail-leaderboard']
         .forEach(id => {
           const el = document.getElementById(id);
           if (el) el.classList.toggle('active', id === activeId);
@@ -2593,6 +2676,20 @@
     });
     $('rail-avatar') && $('rail-avatar').addEventListener('click', () => {
       renderAvatarsView(); showView('avatars');
+    });
+    $('rail-leaderboard') && $('rail-leaderboard').addEventListener('click', () => {
+      renderLeaderboardView(); showView('leaderboard'); setRailNav('leaderboard');
+    });
+    $('btn-leaderboard-back') && $('btn-leaderboard-back').addEventListener('click', () => {
+      Sound.click();
+      showView('dashboard');
+      renderDashboard();
+    });
+    document.querySelectorAll('.lb-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        Sound.click();
+        renderLeaderboardView(tab.dataset.metric);
+      });
     });
     $('rail-settings') && $('rail-settings').addEventListener('click', () => {
       renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');
