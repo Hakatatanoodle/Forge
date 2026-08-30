@@ -24,6 +24,11 @@
     sessionMinutes: null, // set by intention screen timer picker
   };
 
+  // Phase 0: what this page load turned out to be — 'none', 'resume', or
+  // 'abandoned'. Decided once, at the very start of init(), because the
+  // answer depends on a single-use token that must not be readable twice.
+  let _bootResolution = { kind: 'none', session: null };
+
   // ══════════════════════════════════════════
   // DOM REFERENCES
   // ══════════════════════════════════════════
@@ -61,6 +66,13 @@
   // INIT
   // ══════════════════════════════════════════
   function init() {
+    // FIRST thing, before any async boot work: was this load a sanctioned
+    // hop back from village.html, or did somebody run away? The transfer
+    // token is single-use, so this question can only be asked once, and it
+    // has to be asked before a slow Firebase round-trip gives the person
+    // time to reload again.
+    _bootResolution = SessionRuntime.resolveOnLoad();
+
     bindEvents();
     // Fallback offline timer — if Firebase doesn't respond in 3s, show login with offline option
     const fbTimeout = setTimeout(() => {
@@ -160,6 +172,12 @@
     // this is — don't wait for the next session/task completion.
     syncLeaderboard();
 
+    // Phase 0 — a session may have survived a sanctioned hop from
+    // village.html (restore it), or an abandoned one may be owed its
+    // checkpoint credit (pay it). Either takes precedence over the
+    // normal dashboard/summary landing.
+    if (await finishBootSessionHandling()) return;
+
     // Check if today is summary day and this week hasn't been shown
     if (_shouldShowSummary()) {
       _markSummaryShown();
@@ -212,6 +230,10 @@
     applyTheme(state.user.activeTheme || 'forge');
     applyRailCollapsed();
     showAuthLoading(false);
+    // Phase 0 — same handling as the signed-in path. Guest/offline mode
+    // gets cross-page sessions and merciful abandon too; none of it needs
+    // the network.
+    if (await finishBootSessionHandling()) return;
     if (_shouldShowSummary()) {
       _markSummaryShown();
       renderWeeklySummary();
@@ -1041,6 +1063,7 @@
   function launchSession() {
     const intention = sessionContext.intention;
     const task = state.tasks.find(t => t.id === sessionContext.taskId);
+    const minutes = sessionContext.sessionMinutes || state.settings.workMinutes;
 
     $('session-task-label').textContent        = task ? task.text : '—';
     $('session-intention-display').textContent = intention;
@@ -1052,9 +1075,24 @@
 
     showView('session');
 
+    // Phase 0: persist the session to localStorage BEFORE the timer runs.
+    // From here on the record — not this page's memory — is the authority
+    // on how much has been focused, which is what lets village.html show
+    // a live timer and what makes merciful abandon possible at all.
+    SessionRuntime.start({
+      taskId:               sessionContext.taskId,
+      goalId:               sessionContext.goalId || null,
+      taskLabel:            task ? task.text : '',
+      intention:            intention,
+      difficultyMultiplier: sessionContext.difficultyMultiplier,
+      plannedMinutes:       minutes,
+      startedAtISO:         sessionContext.startTime
+    });
+    _startHeartbeat();
+
     // Use the session-level minutes (set by picker, not global settings)
     Timer.startFocus(
-      sessionContext.sessionMinutes || state.settings.workMinutes,
+      minutes,
       onTimerTick,
       onSessionComplete
     );
@@ -1089,12 +1127,14 @@
   function openPlanDrawer() {
     // Auto-hold the timer while planning
     if (Timer.isRunning()) {
+      SessionRuntime.pause();
       Timer.hold((holdRemain) => {
         const { mm, ss } = Timer.format(holdRemain);
         $('hold-countdown').textContent = `${mm}:${ss}`;
         if (holdRemain <= 0) {
           $('hold-overlay').classList.add('hidden');
           $('session-controls').classList.remove('hidden');
+          SessionRuntime.resume();
         }
       });
       // Don't show hold overlay — drawer takes over the screen
@@ -1125,6 +1165,7 @@
 
     // Resume timer if it was held by us (hold overlay is NOT showing)
     if (Timer.isHeld() && $('hold-overlay').classList.contains('hidden')) {
+      SessionRuntime.resume();
       Timer.resume();
     }
   }
@@ -1198,9 +1239,17 @@
   // Step 5: Manual complete or abandon
   function completeSession(completed) {
     Timer.stop();
+    // Either way this session is over — stop heartbeating and drop the
+    // runtime record so a later reload can't mistake it for a session
+    // that was still running when the person left.
+    _stopHeartbeat();
+    SessionRuntime.clear();
 
     if (!completed) {
-      // Abandoned — go back to dashboard, no XP
+      // Deliberate abandon via the ✕ ABANDON button. Unchanged, on
+      // purpose: the person was explicitly warned "No XP will be earned"
+      // and chose it anyway. Mercy exists for the accident (a refresh, a
+      // closed tab, a dead battery), not for the decision.
       Sound.abandon();
       showView('dashboard');
       renderDashboard();
@@ -1269,6 +1318,176 @@
 
     // Show reward screen
     showReward(xpResult, levelsGained, newLevel, rankChanged, newRank, newStreak, freezeAwarded);
+  }
+
+  // ══════════════════════════════════════════
+  // PHASE 0 — CROSS-PAGE SESSIONS & MERCIFUL ABANDON
+  //
+  // See sessionRuntime.js for the full rationale. app.js's job here is
+  // narrow and deliberate: it owns the heartbeat while this page is the
+  // one hosting the session, it re-attaches the Timer after a sanctioned
+  // page hop, and it is the ONLY place that converts an abandoned
+  // checkpoint into actual rewards.
+  // ══════════════════════════════════════════
+
+  let _heartbeatInterval = null;
+
+  function _startHeartbeat() {
+    _stopHeartbeat();
+    _heartbeatInterval = setInterval(() => {
+      SessionRuntime.heartbeat();
+    }, SessionRuntime.HEARTBEAT_MS);
+  }
+
+  function _stopHeartbeat() {
+    if (_heartbeatInterval) { clearInterval(_heartbeatInterval); _heartbeatInterval = null; }
+  }
+
+  // ── SANCTIONED NAVIGATION → VILLAGE ──
+  // The token is what separates "I clicked a button in the app" from
+  // "I closed the app". Issue it, then leave.
+  function goToVillage() {
+    Sound.click();
+    if (SessionRuntime.read()) {
+      _stopHeartbeat();
+      SessionRuntime.issueTransferToken('index', 'village');
+    }
+    window.location.assign('village.html');
+  }
+
+  // ── RE-ATTACH A TRANSFERRED SESSION ──
+  // Rebuilds sessionContext from the persisted record (this page's memory
+  // is empty — it just booted) and puts the Timer back where it was.
+  function restoreActiveSession(rec) {
+    if (!rec) return false;
+
+    sessionContext.taskId               = rec.taskId;
+    sessionContext.goalId               = rec.goalId || null;
+    sessionContext.intention            = rec.intention || '';
+    sessionContext.difficultyMultiplier = rec.difficultyMultiplier || 1.0;
+    sessionContext.startTime            = rec.startedAtISO || new Date(rec.startedAtMs).toISOString();
+    sessionContext.sessionMinutes       = Math.round((rec.plannedDurationMs || 0) / 60000);
+
+    const task = state.tasks.find(t => t.id === rec.taskId);
+    $('session-task-label').textContent        = task ? task.text : (rec.taskLabel || '—');
+    $('session-intention-display').textContent = rec.intention || '';
+    $('session-mode-label').textContent        = 'FOCUS';
+    $('hold-overlay').classList.add('hidden');
+    $('session-controls').classList.remove('hidden');
+
+    showView('session');
+
+    const plannedSecs = Math.round((rec.plannedDurationMs || 0) / 1000);
+    const elapsedSecs = Math.round(SessionRuntime.liveElapsedMs(rec) / 1000);
+
+    Timer.restoreFocus(plannedSecs, elapsedSecs, onTimerTick, onSessionComplete);
+    _startHeartbeat();
+
+    // The planned duration ran out while the person was on the village
+    // page. Finish it now, through the normal reward pipeline — village
+    // deliberately never grants rewards itself.
+    if (elapsedSecs >= plannedSecs) {
+      onSessionComplete();
+      return true;
+    }
+
+    // Came back mid-HOLD: re-enter the held state rather than silently
+    // resuming, so a paused session still reads as paused.
+    if (rec.status === 'paused') {
+      Timer.hold((holdRemain) => {
+        const { mm, ss } = Timer.format(holdRemain);
+        $('hold-countdown').textContent = `${mm}:${ss}`;
+        if (holdRemain <= 0) {
+          $('hold-overlay').classList.add('hidden');
+          $('session-controls').classList.remove('hidden');
+        }
+      });
+      $('hold-overlay').classList.remove('hidden');
+      $('session-controls').classList.add('hidden');
+    }
+    return true;
+  }
+
+  // ── DRAIN A PENDING ABANDON (the mercy payout) ──
+  // Called once per boot, AFTER state is loaded and migrated — never
+  // before, or it would credit XP onto a state object that is about to be
+  // replaced by the cloud copy.
+  //
+  // Credit is computed from creditedElapsedMs, which sessionRuntime already
+  // pinned to the last checkpoint. This function must never look at live
+  // elapsed time; that is the entire point of the feature.
+  async function applyPendingAbandon() {
+    const parked = SessionRuntime.readPendingAbandon();
+    if (!parked) return false;
+    // Clear first: a payout that throws halfway is a bug to fix, but a
+    // payout that repeats on every reload is free infinite XP.
+    SessionRuntime.clearPendingAbandon();
+
+    const creditedMs      = parked.creditedElapsedMs || 0;
+    const creditedMinutes = Math.floor(creditedMs / 60000);
+
+    if (creditedMinutes < 1) {
+      // Ran away before banking a single full minute. Nothing to pay.
+      showToast('SESSION ABANDONED — NO CREDIT BANKED', 'warn');
+      return false;
+    }
+
+    // Same economy function the completed path uses, so an abandoned
+    // minute is worth exactly what a completed minute is worth. Mercy is
+    // in HOW MUCH time counts, not in a different exchange rate.
+    const xpResult = XP.calculateSessionXP(
+      parked.difficultyMultiplier || 1.0,
+      state.user.streak.current,
+      creditedMinutes,
+      state.user.level
+    );
+
+    const { updatedUser } = XP.applyXP(state.user, xpResult.total);
+    updatedUser.coins = (updatedUser.coins || 0) + xpResult.coinsEarned;
+    state.user = updatedUser;
+
+    // Deliberately NOT touched: streak (updateStreak), totalSessions, and
+    // today.sessionsCompleted. Running away is not a completed session —
+    // it must not defend a streak or feed the Session Stack achievement.
+    // achievements.js already filters on `completed`, so logging this with
+    // completed:false keeps every achievement family honest for free.
+    state.sessions.push({
+      id:          Storage.uuid(),
+      taskId:      parked.taskId,
+      intention:   parked.intention || '',
+      startTime:   parked.startedAtISO || new Date(parked.startedAtMs).toISOString(),
+      endTime:     new Date(parked.abandonedAtMs || Date.now()).toISOString(),
+      completed:   false,
+      abandoned:   true,
+      xpEarned:    xpResult.total,
+      coinsEarned: xpResult.coinsEarned,
+      focusedMinutes: creditedMinutes,
+      taskScheduledStartSnapshot: null
+    });
+
+    await saveState();
+    if (typeof syncLeaderboard === 'function') syncLeaderboard();
+    renderDashboard();
+    showToast(`ABANDONED · ${creditedMinutes}m BANKED · +${xpResult.total} XP`, 'warn');
+    return true;
+  }
+
+  // ── BOOT HANDOFF ──
+  // Returns true when it has taken over the screen, so the normal
+  // dashboard/weekly-summary landing knows to stand down.
+  async function finishBootSessionHandling() {
+    // Payout first: it mutates state.user, and whatever renders next
+    // (dashboard or the restored session view) should show post-credit
+    // numbers rather than briefly flashing the stale ones.
+    await applyPendingAbandon();
+
+    if (_bootResolution.kind === 'resume' && _bootResolution.session) {
+      const session = _bootResolution.session;
+      // One-shot: consumed here so a later re-render can't restore twice.
+      _bootResolution = { kind: 'none', session: null };
+      return restoreActiveSession(session);
+    }
+    return false;
   }
 
   // ══════════════════════════════════════════
@@ -2834,6 +3053,10 @@
 
     $('btn-hold-session').addEventListener('click', () => {
       Sound.click();
+      // Mirror the hold onto the persisted record — otherwise held time
+      // would keep accruing as "focused" on disk while the on-screen
+      // timer sat frozen, and an abandon during a hold would overpay.
+      SessionRuntime.pause();
       Timer.hold((holdRemain) => {
         const { mm, ss } = Timer.format(holdRemain);
         $('hold-countdown').textContent = `${mm}:${ss}`;
@@ -2841,6 +3064,8 @@
         if (holdRemain <= 0) {
           $('hold-overlay').classList.add('hidden');
           $('session-controls').classList.remove('hidden');
+          // Timer.hold() auto-resumes itself at zero; keep the record in step.
+          SessionRuntime.resume();
         }
       });
       $('hold-overlay').classList.remove('hidden');
@@ -2849,6 +3074,7 @@
 
     $('btn-resume-session').addEventListener('click', () => {
       Sound.click();
+      SessionRuntime.resume();
       Timer.resume();
       $('hold-overlay').classList.add('hidden');
       $('session-controls').classList.remove('hidden');
@@ -2858,6 +3084,14 @@
       forgeConfirm('Abandon this session? No XP will be earned.', () => {
         completeSession(false);
       });
+    });
+
+    // ── VILLAGE (Phase 0: sanctioned cross-page navigation) ──
+    // Two entry points, both explicit in-app buttons — the only kind of
+    // navigation that does NOT count as running away.
+    ['btn-goto-village', 'btn-session-goto-village'].forEach(id => {
+      const btn = $(id);
+      if (btn) btn.addEventListener('click', goToVillage);
     });
 
     // ── MID-SESSION PLAN DRAWER ──

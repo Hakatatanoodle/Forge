@@ -86,7 +86,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v14.1</span>
+        <span class="rail-version">FORGE v14.2</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -103,7 +103,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v14.1</span>
+          <span class="logo-version">v14.2</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -225,7 +225,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v14.1</span>
+          <span id="drawer-version" class="drawer-version">FORGE v14.2</span>
         </div>
       </div>
 
@@ -322,6 +322,21 @@
             <!-- 7 bars Mon–Sun rendered by JS -->
           </div>
         </div>
+
+        <!-- ══ VILLAGE ══
+             Deliberately NOT a rail nav item. village.html is a real
+             separate page, and every link to it has to issue a session
+             transfer token first (see goToVillage in app.js) — routing it
+             through the rail would invite a plain <a href> somewhere that
+             silently abandons a running session. -->
+        <button id="btn-goto-village" class="village-entry-card" type="button">
+          <span class="village-entry-ico">🏘</span>
+          <span class="village-entry-text">
+            <span class="village-entry-label">YOUR VILLAGE</span>
+            <span class="village-entry-sub">Built from focused hours</span>
+          </span>
+          <span class="village-entry-arrow">→</span>
+        </button>
 
       </div>
 
@@ -429,6 +444,11 @@
 
         <!-- Mid-session plan trigger -->
         <button id="btn-open-plan-drawer" class="btn-plan-drawer-trigger">＋ ADD TASK TO GOAL</button>
+
+        <!-- Mid-session village peek. Safe to leave the page from here:
+             the click issues a transfer token, so the session survives
+             the hop and keeps checkpointing over on village.html. -->
+        <button id="btn-session-goto-village" class="btn-session-village">🏘 VIEW VILLAGE</button>
 
       </div>
 
@@ -1142,7 +1162,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v14.1</div>
+  <div class="version-stamp">FORGE v14.2</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
@@ -1162,6 +1182,7 @@
   <script src="storage.js"></script>
   <script src="xp.js"></script>
   <script src="timer.js"></script>
+  <script src="sessionRuntime.js"></script>
   <script src="sound.js"></script>
   <script src="firebase.js"></script>
   <script src="repository.js"></script>
@@ -1203,6 +1224,12 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (_swRefreshed) return;
         _swRefreshed = true;
+        // Phase 0: this reload is the APP's decision, not the person's, so
+        // it must not be scored as running away from a session. Stamp a
+        // transfer token first and the reloaded page resumes intact.
+        if (window.SessionRuntime && SessionRuntime.read()) {
+          SessionRuntime.issueTransferToken('index', 'index');
+        }
         window.location.reload();
       });
     }
@@ -1220,6 +1247,12 @@
         refreshBtn.addEventListener('click', () => {
           // The new SW is already active by this point (it self-activates
           // in the background) — this reload is what actually shows it.
+          // Tapping an in-app button is sanctioned navigation, so a
+          // running session transfers across the reload rather than
+          // being treated as an abandon.
+          if (window.SessionRuntime && SessionRuntime.read()) {
+            SessionRuntime.issueTransferToken('index', 'index');
+          }
           window.location.reload();
         });
       }

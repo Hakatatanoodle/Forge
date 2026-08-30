@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>FORGE — VILLAGE</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400&family=Oswald:wght@400;600;700&family=Cormorant+Garamond:wght@300;400;600;700&family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<!-- data-theme is set by villagePage.js from the saved state, so the
+     village inherits whichever theme was unlocked and selected in the
+     Armory instead of hardcoding one. -->
+<body class="no-rail village-body">
+
+  <div class="grain"></div>
+
+  <!-- ════════════════════════════════════════
+       TIMER STRIP — the whole reason a second page is safe.
+       Reads SessionRuntime's localStorage record, not this page's memory,
+       so a session started on index.html renders here with the correct
+       remaining time and keeps checkpointing while you look around.
+       Hidden entirely when no session is running.
+  ════════════════════════════════════════ -->
+  <div id="village-timer-strip" class="village-strip hidden">
+    <div class="village-strip-left">
+      <span class="village-strip-label" id="village-strip-label">FOCUS</span>
+      <span class="village-strip-task" id="village-strip-task">—</span>
+    </div>
+    <div class="village-strip-clock">
+      <span id="village-strip-mins">00</span><span class="village-strip-colon">:</span><span id="village-strip-secs">00</span>
+    </div>
+    <div class="village-strip-right">
+      <span class="village-strip-note" id="village-strip-note">VIEW ONLY WHILE FORGING</span>
+    </div>
+  </div>
+
+  <div id="village-page" class="village-page">
+
+    <!-- ── HEADER ── -->
+    <header class="village-header">
+      <div class="village-title-block">
+        <span class="village-title">YOUR VILLAGE</span>
+        <span class="village-subtitle" id="village-subtitle">Built from focused hours</span>
+      </div>
+      <!-- Sanctioned navigation. Issues a transfer token before leaving,
+           which is what stops this from being scored as running away. -->
+      <button id="btn-back-to-forge" class="btn-secondary village-back-btn" type="button">◀ BACK TO FORGE</button>
+    </header>
+
+    <!-- ── PLACEHOLDER VILLAGE AREA (Phase 1 fills this in) ── -->
+    <div class="village-stage-wrap">
+      <div id="village-stage" class="village-stage">
+        <div class="village-grid-placeholder" id="village-grid-placeholder">
+          <!-- tiles injected by villagePage.js -->
+        </div>
+
+        <div class="village-empty-note" id="village-empty-note">
+          <span class="village-empty-title">EMPTY LAND</span>
+          <span class="village-empty-sub">Phase 1 turns coins and focused hours into buildings here.</span>
+        </div>
+      </div>
+
+      <!-- View-only lock. Present only while a session is running; Phase 1
+           interactions get added underneath it and are gated by it. -->
+      <div id="village-lock" class="village-lock hidden">
+        <div class="village-lock-inner">
+          <span class="village-lock-ico">🔒</span>
+          <span class="village-lock-title">VIEW ONLY</span>
+          <span class="village-lock-sub">A session is running. Building resumes when you finish.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COIN / STATS FOOTER (read-only mirror of saved state) ── -->
+    <footer class="village-footer">
+      <div class="village-stat">
+        <span class="village-stat-val" id="village-coins">0</span>
+        <span class="village-stat-lbl">◎ COINS</span>
+      </div>
+      <div class="village-stat">
+        <span class="village-stat-val" id="village-level">1</span>
+        <span class="village-stat-lbl">LEVEL</span>
+      </div>
+      <div class="village-stat">
+        <span class="village-stat-val" id="village-hours">0h</span>
+        <span class="village-stat-lbl">FORGED</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <div class="version-stamp">FORGE v14.2 · VILLAGE</div>
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts — deliberately minimal. No Firebase, no app.js, no
+       calendar/plan. This page reads saved state and the session runtime;
+       it never grants rewards or writes app state. -->
+  <script src="storage.js"></script>
+  <script src="sessionRuntime.js"></script>
+  <script src="villagePage.js"></script>
+  <script>
+    // Register the same service worker so village.html is available
+    // offline even when it is the first page loaded. No controllerchange
+    // auto-reload here on purpose — an unannounced reload of this page
+    // during a session would look exactly like running away.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

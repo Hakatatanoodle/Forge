@@ -32,6 +32,8 @@ Repeat. Level up, rank up, keep the streak alive, earn coins, buy themes and str
 - **Weekly Debrief** — auto-summary on your chosen day if last week had sessions: hero XP, best day, a motivational line.
 - **Armory (shop)** — themes priced 0–500 coins + Streak Freeze (150, max 2).
 - **Themes** — each is a complete world (color, type, texture, rank identity), not a tint: FORGE (ember industrial), VENOM, HACKER, HEISENBERG, VOID, MINECRAFT, ANIME (One Piece — sail the Grand Line, *"BOUNTY INCREASED: 500,000,000"*).
+- **Sessions survive navigation** — a running session is persisted (local-only, never synced): you can open your **Village** mid-focus and come back with the clock intact. Leaving the app instead (refresh, tab close, dead battery) *is* abandoning — but mercifully: you keep every minute up to the last 15-second checkpoint, and the session is logged as abandoned rather than completed.
+- **Village (Phase 0 shell)** — `village.html`: your land, a live timer strip while forging, and view-only lock during a session. Buildings arrive in Phase 1.
 - **Synthesized sound** — Web Audio API, no audio files.
 - **Offline / guest mode** — pure `localStorage`, no Google sign-in required; data merges if you later sign in.
 - **PWA** — installable (manifest + icons), service worker with robust cache strategy.
@@ -43,7 +45,10 @@ Repeat. Level up, rank up, keep the streak alive, earn coins, buy themes and str
 | File | Role |
 |---|---|
 | `index.html` | All 12 views (onboarding, dashboard, intention, session, break, reward, plan, tasks, history, settings, summary, shop) — `.view.active` toggling, no router |
+| `village.html` | The village page — timer strip, land, view-only lock. Loads only `storage.js` + `sessionRuntime.js` + `villagePage.js` |
 | `app.js` | The engine: state, view routing, dashboard, session/reward loop, shop, summary, history |
+| `villagePage.js` | Village controller — reads state and the session runtime, renders, and issues transfer tokens. Never grants rewards |
+| `sessionRuntime.js` | Active-session record + heartbeat checkpoints + page-transfer tokens. Pure, DOM-free, local-only |
 | `plan.js` | Plan Mode — Objectives grid, goal detail, milestones, goal modal |
 | `calendar.js` | The commitment layer — time × date grid, drag/resize scheduling, task inspector |
 | `style.css` | Design system — CSS variables + `[data-theme="x"]` overrides, industrial-terminal aesthetic |
@@ -78,12 +83,18 @@ python3 -m http.server 8000
 ## Tests
 
 ```bash
-node tests.js        # 15 unit assertions — zero dependencies
-node tests.plan.js   # 22-step Plan Mode integration run (needs: npm i jsdom)
+node tests.js                     # 15 unit assertions — zero dependencies
+node tests.sessionRuntime.js      # 23 checks: elapsed math, checkpoints, tokens, abandon credit
+node tests.sessionPersistence.js  # Phase 0 flow: hop → resume, refresh → checkpoint-credited abandon
+node tests.plan.js                # 22-step Plan Mode integration run (needs: npm i jsdom)
 # or open /test.html in the browser
 ```
 
 `tests.js` — storage default, date format, canonical ranks, XP curve, session XP, task XP, level-up, streak continue/reset, timer format/ring, pillar fallback, goal+milestone deletion cleanup, the v12 migration, and the local-time calendar date helpers.
+
+`tests.sessionRuntime.js` — pure logic: focused time with pause excluded *by construction*, checkpoint advance, transfer tokens (TTL, single-use, clock-skew refusal), abandon credit = last checkpoint, and the proof that one abandon can only be paid once.
+
+`tests.sessionPersistence.js` — the cross-page flow against the real `village.html` markup: a token-stamped hop resumes with the clock intact, a refresh without a token is credited at the checkpoint (90s of 135s, not 135s), holds stay frozen, a session that ends on the village page is handed back to the forge, and the version strings / SW precache list stay in sync. Zero dependencies — it builds its element table from the ids in `village.html` rather than requiring `jsdom`.
 
 `tests.plan.js` — drives the real DOM: objectives render, goal drill-down, milestones, all four calendar views, scheduling via drag/API/modal, unschedule, the task inspector, goal creation (asserting **no week objects are generated**), and that the dashboard and task queue still work.
 

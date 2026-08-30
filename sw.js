@@ -4,16 +4,22 @@
 // Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'forge-v14-1';
+const CACHE_VERSION = 'forge-v14-2';
 const CACHE_NAME    = CACHE_VERSION;
 
+// village.html is pre-cached alongside index.html on purpose: it is a real
+// entry point (installable, linkable, and reachable mid-session), so it has
+// to survive going offline exactly as well as the main page does.
 const APP_FILES = [
   './',
   './index.html',
+  './village.html',
   './style.css',
   './app.js',
+  './villagePage.js',
   './sound.js',
   './timer.js',
+  './sessionRuntime.js',
   './xp.js',
   './storage.js',
   './firebase.js',

@@ -115,6 +115,28 @@ const Timer = (() => {
     }, 500);
   }
 
+  // ── RESTORE FOCUS SESSION (Phase 0: cross-page transfer) ──
+  // Re-attaches the timer to a session that is ALREADY partly focused —
+  // used when index.html is loaded with a valid transfer token from
+  // village.html, where the authoritative elapsed time lives in
+  // SessionRuntime's localStorage record rather than in this module.
+  //
+  // Mechanically identical to resume(): keep _fullTotalSecs as the
+  // original planned length (so the SVG ring still measures against the
+  // whole session) and set _totalSecs to only what is LEFT, with a fresh
+  // wall-clock anchor. getElapsedSecs() then reports
+  // (planned - remaining) + live, which is exactly the focused total.
+  function restoreFocus(plannedSecs, elapsedSecs, onTick, onComplete) {
+    _mode          = 'focus';
+    _fullTotalSecs = Math.max(0, Math.floor(plannedSecs || 0));
+    const done     = Math.min(Math.max(0, Math.floor(elapsedSecs || 0)), _fullTotalSecs);
+    _totalSecs     = _fullTotalSecs - done;
+    _onTick        = onTick;
+    _onComplete    = onComplete;
+    _isHeld        = false;
+    _run();
+  }
+
   // ── STOP (abandon) ──
   function stop() {
     _clearMainInterval();
@@ -167,7 +189,7 @@ const Timer = (() => {
   }
 
   return {
-    startFocus, startBreak,
+    startFocus, startBreak, restoreFocus,
     hold, resume, stop,
     format, ringOffset,
     isRunning, isHeld, getMode,

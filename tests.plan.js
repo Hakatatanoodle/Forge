@@ -34,7 +34,7 @@ w.AudioContext = w.webkitAudioContext = function(){
 
 // Classic scripts share one global lexical scope in a browser; concatenate
 // so top-level `const Sound` etc. are visible across files as they really are.
-const bundle = ['storage.js','xp.js','timer.js','sound.js','firebase.js','repository.js','achievements.js','avatars.js','leaderboard.js','calendar.js','plan.js','app.js']
+const bundle = ['storage.js','xp.js','timer.js','sessionRuntime.js','sound.js','firebase.js','repository.js','achievements.js','avatars.js','leaderboard.js','calendar.js','plan.js','app.js']
   .map(f => fs.readFileSync('./'+f,'utf8')).join('\n;\n');
 try { w.eval(bundle); } catch(e){ errs.push('LOAD: '+e.message); }
 
