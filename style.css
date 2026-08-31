@@ -238,6 +238,16 @@ body.no-rail #rail { display: none !important; }
   letter-spacing: 1px;
 }
 
+/* Resuming a session from village.html — never show sign-in/guest UI
+   during this window, even for a brief tick before the view switches
+   away from onboarding. Belt-and-suspenders against the button's own
+   JS-driven show/hide timing. */
+body.is-resuming-session #btn-google-signin,
+body.is-resuming-session .guest-reveal-row,
+body.is-resuming-session .offline-block {
+  display: none !important;
+}
+
 .onboard-form {
   display: flex;
   flex-direction: column;
@@ -7402,15 +7412,15 @@ body.no-rail #rail { display: none !important; }
 .toast.warn { border-color: var(--yellow); border-left-color: var(--yellow); color: var(--yellow); }
 
 /* ── Dashboard doorway card ── */
-.village-entry-card {
+.village-preview-card {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   width: 100%;
-  padding: 14px 16px;
+  margin-top: 14px;
+  padding: 16px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent-dim);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--bg-3);
   color: var(--text-primary);
   cursor: pointer;
@@ -7418,20 +7428,44 @@ body.no-rail #rail { display: none !important; }
   transition: var(--transition);
   flex-shrink: 0;
 }
-.village-entry-card:hover {
-  border-color: var(--border-light);
-  border-left-color: var(--accent);
+.village-preview-card:hover {
+  border-color: var(--accent-dim);
   background: var(--bg-4);
 }
-.village-entry-ico { font-size: 20px; line-height: 1; }
-.village-entry-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.village-entry-label {
+.village-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.village-preview-label {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 2px;
   color: var(--text-primary);
 }
-.village-entry-sub {
+.village-preview-arrow {
+  color: var(--text-dim);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.village-preview-card:hover .village-preview-arrow {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+.village-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%), var(--bg-2);
+}
+.village-preview-plot {
+  aspect-ratio: 1;
+  border: 1px dashed var(--border-light);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg-4) 60%, transparent);
+}
+.village-preview-sub {
   font-family: var(--font-body);
   font-size: 11px;
   color: var(--text-dim);
@@ -7446,22 +7480,23 @@ body.no-rail #rail { display: none !important; }
    Matches the plan-drawer trigger deliberately: both are secondary
    escape hatches that must not compete with HOLD / COMPLETE. */
 .btn-session-village {
-  background: none;
-  border: 1px dashed var(--border);
-  color: var(--text-dim);
+  background: var(--bg-2);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-weight: 700;
+  font-size: 11px;
   letter-spacing: 3px;
-  padding: 8px 16px;
+  padding: 12px 16px;
   border-radius: var(--radius);
   cursor: pointer;
   width: 100%;
   margin-top: 8px;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 .btn-session-village:hover {
-  border-color: var(--accent-dim);
-  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--bg-3);
 }
 
 /* ── VILLAGE PAGE SHELL ── */
@@ -7650,9 +7685,8 @@ body.no-rail #rail { display: none !important; }
 
 /* ── STATS FOOTER ── */
 .village-footer {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  display: flex;
+  justify-content: center;
   flex-shrink: 0;
   padding-bottom: 4px;
 }
@@ -7661,7 +7695,7 @@ body.no-rail #rail { display: none !important; }
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 8px;
+  padding: 10px 24px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-2);

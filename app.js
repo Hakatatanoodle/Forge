@@ -73,6 +73,21 @@
     // time to reload again.
     _bootResolution = SessionRuntime.resolveOnLoad();
 
+    // A returning, already-signed-in person coming back mid-session from
+    // village.html should never see the marketing tagline or a sign-in
+    // button flash past — they're not signing in, they're bouncing back
+    // to a timer that's still running. Swap the copy BEFORE Firebase even
+    // starts, purely cosmetic — the actual boot/auth/restore logic below
+    // is completely unchanged, this only changes what's on screen while
+    // it runs.
+    if (_bootResolution.kind === 'resume' && _bootResolution.session) {
+      document.body.classList.add('is-resuming-session');
+      const taglineEl = document.querySelector('.onboard-tagline');
+      const loadingTextEl = $('auth-loading-text');
+      if (taglineEl) taglineEl.textContent = 'Resuming your session...';
+      if (loadingTextEl) loadingTextEl.textContent = 'RESUMING...';
+    }
+
     bindEvents();
     // Fallback offline timer — if Firebase doesn't respond in 3s, show login with offline option
     const fbTimeout = setTimeout(() => {
@@ -101,7 +116,11 @@
   // ── Called by Firebase when auth state is known ──
   async function onAuthStateChanged(user) {
     if (!user) {
-      // No session — show sign in screen
+      // No session — show sign in screen. Safety net: if a resume-from-
+      // village attempt somehow ends up here (session gone, whatever),
+      // the cosmetic "resuming" flag from init() must not survive to
+      // permanently hide the real sign-in button.
+      document.body.classList.remove('is-resuming-session');
       showView('onboarding');
       showAuthLoading(false); // make sure button is visible
       return;
@@ -314,6 +333,8 @@
     // Avatar — active avatar image, falls back to initials monogram if
     // the image file doesn't exist yet (see avatars.js header comment).
     renderActiveAvatar();
+
+    renderVillagePreview();
 
     // Greeting + date + quote
     const greetEl = $('dash-greeting');
@@ -1330,6 +1351,21 @@
   // checkpoint into actual rewards.
   // ══════════════════════════════════════════
 
+  // ── DASHBOARD VILLAGE PREVIEW ──
+  // Phase 0 has no real buildings yet, so this mirrors village.html's
+  // own placeholder grid — a small hint of "land you'll build on"
+  // rather than a plain link. Static content, so it only ever needs to
+  // render once (dashboard re-renders often, e.g. after every task
+  // action — no reason to regenerate identical markup each time).
+  function renderVillagePreview() {
+    const grid = $('dash-village-preview-grid');
+    if (!grid || grid.children.length) return;
+    const PLOTS = 10; // smaller than village.html's full grid — just enough to read as land
+    let html = '';
+    for (let i = 0; i < PLOTS; i++) html += '<div class="village-preview-plot" aria-hidden="true"></div>';
+    grid.innerHTML = html;
+  }
+
   let _heartbeatInterval = null;
 
   function _startHeartbeat() {
@@ -1360,6 +1396,13 @@
   // is empty — it just booted) and puts the Timer back where it was.
   function restoreActiveSession(rec) {
     if (!rec) return false;
+
+    // Cosmetic flag from init() — its only job was to keep the onboarding
+    // screen from flashing sign-in copy while this resolved. We're about
+    // to leave that view for good, so drop it now rather than risk it
+    // lingering and hiding real sign-in UI later (e.g. after a sign-out
+    // within this same page lifetime).
+    document.body.classList.remove('is-resuming-session');
 
     sessionContext.taskId               = rec.taskId;
     sessionContext.goalId               = rec.goalId || null;

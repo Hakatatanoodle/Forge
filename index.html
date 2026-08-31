@@ -86,7 +86,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v14.2</span>
+        <span class="rail-version">FORGE v14.3</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -103,7 +103,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v14.2</span>
+          <span class="logo-version">v14.3</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -225,7 +225,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v14.2</span>
+          <span id="drawer-version" class="drawer-version">FORGE v14.3</span>
         </div>
       </div>
 
@@ -261,6 +261,23 @@
             <span class="btn-start-text">▶ START SESSION</span>
           </button>
         </div>
+
+        <!-- ══ VILLAGE PREVIEW ══
+             Deliberately NOT a rail nav item. village.html is a real
+             separate page, and every link to it has to issue a session
+             transfer token first (see goToVillage in app.js) — routing it
+             through the rail would invite a plain <a href> somewhere that
+             silently abandons a running session. -->
+        <button id="btn-goto-village" class="village-preview-card" type="button">
+          <div class="village-preview-header">
+            <span class="village-preview-label">🏘 YOUR VILLAGE</span>
+            <span class="village-preview-arrow">→</span>
+          </div>
+          <div id="dash-village-preview-grid" class="village-preview-grid">
+            <!-- Rendered by JS: mini empty-plot grid, mirrors village.html -->
+          </div>
+          <span class="village-preview-sub">Built from focused hours</span>
+        </button>
 
       </div>
 
@@ -322,21 +339,6 @@
             <!-- 7 bars Mon–Sun rendered by JS -->
           </div>
         </div>
-
-        <!-- ══ VILLAGE ══
-             Deliberately NOT a rail nav item. village.html is a real
-             separate page, and every link to it has to issue a session
-             transfer token first (see goToVillage in app.js) — routing it
-             through the rail would invite a plain <a href> somewhere that
-             silently abandons a running session. -->
-        <button id="btn-goto-village" class="village-entry-card" type="button">
-          <span class="village-entry-ico">🏘</span>
-          <span class="village-entry-text">
-            <span class="village-entry-label">YOUR VILLAGE</span>
-            <span class="village-entry-sub">Built from focused hours</span>
-          </span>
-          <span class="village-entry-arrow">→</span>
-        </button>
 
       </div>
 
@@ -1162,7 +1164,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v14.2</div>
+  <div class="version-stamp">FORGE v14.3</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>

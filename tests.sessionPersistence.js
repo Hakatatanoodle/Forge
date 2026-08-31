@@ -268,13 +268,11 @@
       assert(document.body.classList.contains('village-view-only'), 'body carries the view-only class for Phase 1 gating');
       log('✓ (a) the land is view-only while a session runs');
 
-      // Read-only mirrors of saved state.
+      // Read-only mirror of saved state.
       assert(document.body.getAttribute('data-theme') === 'venom', 'the saved theme is applied, got ' + document.body.getAttribute('data-theme'));
       assert(String($('village-coins').textContent) === '240', 'coins mirrored from saved state, got ' + $('village-coins').textContent);
-      assert(String($('village-level').textContent) === '7', 'level mirrored from saved state');
-      assert($('village-hours').textContent === '1.5h', 'only COMPLETED sessions count toward forged hours, got ' + $('village-hours').textContent);
       assert(/village-plot/.test($('village-grid-placeholder').innerHTML), 'placeholder land is rendered');
-      log('✓ (a) coins / level / forged hours / theme mirror the saved state (read-only)');
+      log('✓ (a) coins / theme mirror the saved state (read-only)');
 
       // Heartbeats keep running HERE. Without this, browsing the village
       // would freeze the mercy boundary and a later crash would pay only

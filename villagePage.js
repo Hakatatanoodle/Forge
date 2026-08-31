@@ -65,16 +65,8 @@ const VillagePage = (() => {
 
   function renderStats(state) {
     const user = (state && state.user) || {};
-    const totalMins = (state.sessions || [])
-      .filter(s => s && s.completed)
-      .reduce((sum, s) => sum + sessionFocusedMinutes(s), 0);
-
     const coinsEl = $('village-coins');
-    const lvlEl   = $('village-level');
-    const hrsEl   = $('village-hours');
     if (coinsEl) coinsEl.textContent = user.coins || 0;
-    if (lvlEl)   lvlEl.textContent   = user.level || 1;
-    if (hrsEl)   hrsEl.textContent   = (Math.round((totalMins / 60) * 10) / 10) + 'h';
   }
 
   // ── PLACEHOLDER LAND ──
