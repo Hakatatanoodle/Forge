@@ -73,19 +73,28 @@
     // time to reload again.
     _bootResolution = SessionRuntime.resolveOnLoad();
 
-    // A returning, already-signed-in person coming back mid-session from
-    // village.html should never see the marketing tagline or a sign-in
-    // button flash past — they're not signing in, they're bouncing back
-    // to a timer that's still running. Swap the copy BEFORE Firebase even
-    // starts, purely cosmetic — the actual boot/auth/restore logic below
-    // is completely unchanged, this only changes what's on screen while
-    // it runs.
-    if (_bootResolution.kind === 'resume' && _bootResolution.session) {
+    // Two SEPARATE, independent reasons to skip the marketing splash —
+    // don't conflate them:
+    //  1. Resuming an active session (session/abandon logic cares about this).
+    //  2. ANY sanctioned village → forge hop, even with no session running
+    //     at all (village.html sets FORGE_NAV_HINT_V1 unconditionally on
+    //     every "Back to Forge" click — see villagePage.js leaveTo()).
+    //     This is purely cosmetic and never touches session/abandon state.
+    // A returning, already-signed-in person bouncing back from the
+    // village should never see the marketing tagline or a sign-in button
+    // flash past, whether or not a timer happens to be running. Swap the
+    // copy BEFORE Firebase even starts — the actual boot/auth/restore
+    // logic below is completely unchanged, this only changes what's on
+    // screen while it runs.
+    const isResumingSession = _bootResolution.kind === 'resume' && !!_bootResolution.session;
+    const isAppNavHop       = isResumingSession || SessionRuntime.consumeNavHint();
+
+    if (isAppNavHop) {
       document.body.classList.add('is-resuming-session');
       const taglineEl = document.querySelector('.onboard-tagline');
       const loadingTextEl = $('auth-loading-text');
-      if (taglineEl) taglineEl.textContent = 'Resuming your session...';
-      if (loadingTextEl) loadingTextEl.textContent = 'RESUMING...';
+      if (taglineEl) taglineEl.textContent = isResumingSession ? 'Resuming your session...' : 'Welcome back...';
+      if (loadingTextEl) loadingTextEl.textContent = isResumingSession ? 'RESUMING...' : 'LOADING...';
     }
 
     bindEvents();
@@ -196,6 +205,12 @@
     // checkpoint credit (pay it). Either takes precedence over the
     // normal dashboard/summary landing.
     if (await finishBootSessionHandling()) return;
+
+    // No session to restore (restoreActiveSession would have cleaned
+    // this up itself) — but the "Welcome back..." cosmetic swap from
+    // init() may still be on <body> if this was a sanctioned nav hop
+    // with no session running. Clear it before landing on a normal view.
+    document.body.classList.remove('is-resuming-session');
 
     // Check if today is summary day and this week hasn't been shown
     if (_shouldShowSummary()) {
@@ -1388,6 +1403,7 @@
       _stopHeartbeat();
       SessionRuntime.issueTransferToken('index', 'village');
     }
+    SessionRuntime.issueNavHint();
     window.location.assign('village.html');
   }
 

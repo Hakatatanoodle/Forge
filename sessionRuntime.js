@@ -38,6 +38,13 @@ const SessionRuntime = (() => {
   const ACTIVE_KEY   = 'FORGE_ACTIVE_SESSION_V1';
   const TRANSFER_KEY = 'FORGE_SESSION_TRANSFER_TOKEN_V1';
   const PENDING_KEY  = 'FORGE_PENDING_ABANDON_V1';
+  // Deliberately separate from TRANSFER_KEY. That token is tied to
+  // session continuity/abandon detection and must stay narrowly scoped.
+  // This one is PURELY cosmetic — "the person navigated here via an
+  // in-app button, not a fresh cold visit" — and applies whether or not
+  // a session happens to be running. Never read by any session/abandon
+  // logic, only by the boot-screen copy.
+  const NAV_HINT_KEY = 'FORGE_NAV_HINT_V1';
 
   // The mercy boundary. Every HEARTBEAT_MS the focused elapsed time is
   // written to disk; anything focused after the last write is forfeit if
@@ -50,6 +57,7 @@ const SessionRuntime = (() => {
   // slow load and short enough that a stale token can't be replayed
   // later to launder an abandon into a resume.
   const TRANSFER_TTL_MS = 10000;
+  const NAV_HINT_TTL_MS = 10000;
 
   // ── INJECTABLE CLOCK (tests only) ──
   let _clock = () => Date.now();
@@ -226,6 +234,27 @@ const SessionRuntime = (() => {
 
   function readTransferToken() { return _read(TRANSFER_KEY); }
 
+  // ── COSMETIC NAV HINT (no session required) ──
+  // Called unconditionally on every in-app village↔forge button click,
+  // whether or not a session is running. Sole purpose: let the
+  // destination page skip its marketing/sign-in splash for what is
+  // really just a routine back-and-forth, not a fresh visit. Never
+  // consulted by session or abandon logic — see the NAV_HINT_KEY
+  // comment above.
+  function issueNavHint(atMs) {
+    _write(NAV_HINT_KEY, { issuedAtMs: _at(atMs) });
+  }
+
+  // SINGLE USE, ALWAYS — read once, deleted regardless of whether it
+  // was still fresh. A stale or reused hint should never keep the app
+  // permanently stuck in "welcome back" mode.
+  function consumeNavHint(atMs) {
+    const hint = _read(NAV_HINT_KEY);
+    _remove(NAV_HINT_KEY);
+    if (!hint || typeof hint.issuedAtMs !== 'number') return false;
+    return (_at(atMs) - hint.issuedAtMs) < NAV_HINT_TTL_MS;
+  }
+
   // ── CONSUME TRANSFER TOKEN ──
   // SINGLE USE, ALWAYS. The token is deleted whether or not it validated.
   // Leaving a used token behind would make the NEXT refresh look like a
@@ -300,11 +329,13 @@ const SessionRuntime = (() => {
     liveElapsedMs, remainingMs, checkpointElapsedMs, checkpointMinutes,
     // page transfer
     issueTransferToken, consumeTransferToken, readTransferToken,
+    // cosmetic nav hint (independent of session state)
+    issueNavHint, consumeNavHint,
     // load-time resolution
     resolveOnLoad, readPendingAbandon, clearPendingAbandon,
     // constants + test seam
-    HEARTBEAT_MS, TRANSFER_TTL_MS,
-    ACTIVE_KEY, TRANSFER_KEY, PENDING_KEY,
+    HEARTBEAT_MS, TRANSFER_TTL_MS, NAV_HINT_TTL_MS,
+    ACTIVE_KEY, TRANSFER_KEY, PENDING_KEY, NAV_HINT_KEY,
     _setClock, now
   };
 

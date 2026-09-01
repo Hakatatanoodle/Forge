@@ -1465,7 +1465,8 @@ body.is-resuming-session .offline-block {
   justify-content: space-between;
   padding: 32px 24px 40px;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .session-container {

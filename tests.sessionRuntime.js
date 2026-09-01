@@ -426,7 +426,54 @@
       log('✓ the mercy window is bounded by exactly one heartbeat (' + forfeited + 'ms lost here)');
     }
 
-    log('All session runtime tests passed ✅ — elapsed math, pause exclusion, checkpointing, token TTL/single-use, abandon credit, and double-credit safety verified');
+    // ══ 24. COSMETIC NAV HINT — independent of session state ══
+    // This flag exists purely so the boot screen can skip its marketing/
+    // sign-in splash for a routine village↔forge hop. It must work with
+    // NO session running at all (that's the whole point — this is the
+    // gap the session/abandon-scoped transfer token deliberately doesn't
+    // cover), and it must never be readable as session/abandon state.
+    {
+      reset();
+      // No session exists at all — issuing and consuming must still work.
+      assert(SR.read() === null, 'sanity: no session exists for this test');
+      SR.issueNavHint();
+      assert(SR.consumeNavHint() === true, 'a fresh nav hint is valid even with zero session state');
+      log('✓ nav hint works with no session running — this is its entire purpose');
+    }
+
+    {
+      reset();
+      assert(SR.consumeNavHint() === false, 'consuming with nothing issued is false, not a throw');
+    }
+
+    {
+      reset();
+      SR.issueNavHint();
+      assert(SR.consumeNavHint() === true, 'first consume of a fresh hint succeeds');
+      assert(SR.consumeNavHint() === false, 'second consume of the same hint fails — single use, like the transfer token');
+      log('✓ nav hint is single-use, same discipline as the transfer token');
+    }
+
+    {
+      reset();
+      SR.issueNavHint();
+      at(T0 + SR.NAV_HINT_TTL_MS + 1);
+      assert(SR.consumeNavHint() === false, 'an expired nav hint is rejected, not silently accepted');
+      log('✓ nav hint respects its own TTL — a stale hint from a long-abandoned tab does not count');
+    }
+
+    {
+      // The nav hint and the session transfer token are stored under
+      // different keys and must not interfere with each other.
+      assert(SR.NAV_HINT_KEY !== SR.TRANSFER_KEY, 'nav hint uses a distinct storage key from the session transfer token');
+      reset();
+      startSession();
+      SR.issueTransferToken('index', 'village');
+      assert(SR.consumeNavHint() === false, 'issuing a transfer token does NOT also satisfy the nav hint — they are independent');
+      log('✓ nav hint and session transfer token are fully independent mechanisms');
+    }
+
+    log('All session runtime tests passed ✅ — elapsed math, pause exclusion, checkpointing, token TTL/single-use, abandon credit, double-credit safety, and the cosmetic nav hint verified');
   }
 
   try { run(); } catch (e) { console.error(e); process.exit(1); }

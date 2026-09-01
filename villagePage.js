@@ -135,6 +135,10 @@ const VillagePage = (() => {
     if (SessionRuntime.read()) {
       SessionRuntime.issueTransferToken('village', url.indexOf('village') === 0 ? 'village' : 'index');
     }
+    // Cosmetic-only, independent of whether a session exists — see
+    // sessionRuntime.js's NAV_HINT_KEY comment for why this is separate
+    // from the transfer token above.
+    SessionRuntime.issueNavHint();
     window.location.assign(url);
   }
 
