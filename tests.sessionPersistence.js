@@ -548,10 +548,14 @@
       ['app.js', 'firebase.js', 'repository.js', 'plan.js', 'calendar.js'].forEach(f => {
         assert(VILLAGE_HTML.indexOf('src="' + f + '"') === -1, 'village.html must NOT load ' + f + ' — it is a reader, not the app');
       });
-      assert(indexHtml.indexOf('src="sessionRuntime.js"') !== -1, 'index.html must load sessionRuntime.js');
-      assert(indexHtml.indexOf('id="btn-goto-village"') !== -1, 'index.html needs the dashboard village entry');
-      assert(indexHtml.indexOf('id="btn-session-goto-village"') !== -1, 'index.html needs the mid-session village peek');
-      log('✓ (i) both pages load exactly the scripts they should');
+      assert(indexHtml.indexOf('src="sessionRuntime.js"') !== -1, 'index.html must load sessionRuntime.js — the checkpoint/mercy system protects every session, not just village-bound ones');
+      // Village was shelved as a product decision (see VILLAGE_DORMANT.md)
+      // — the dashboard/mid-session entry points are deliberately GONE
+      // from the live app now. This is intentional, not a regression.
+      assert(indexHtml.indexOf('id="btn-goto-village"') === -1, 'the dashboard village entry was intentionally removed — see VILLAGE_DORMANT.md');
+      assert(indexHtml.indexOf('id="btn-session-goto-village"') === -1, 'the mid-session village peek was intentionally removed — see VILLAGE_DORMANT.md');
+      assert(indexHtml.indexOf('VILLAGE_DORMANT.md') !== -1, 'index.html should point at the dormant-feature explanation somewhere in its comments');
+      log('✓ (i) both pages load exactly the scripts they should, and the village entry points are correctly absent from the live app');
 
       // Offline: village.html is a real entry point, so it must be precached.
       ['./village.html', './villagePage.js', './sessionRuntime.js'].forEach(f => {

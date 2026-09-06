@@ -349,8 +349,6 @@
     // the image file doesn't exist yet (see avatars.js header comment).
     renderActiveAvatar();
 
-    renderVillagePreview();
-
     // Greeting + date + quote
     const greetEl = $('dash-greeting');
     if (greetEl) greetEl.textContent = `${_greeting()}, ${user.name.toUpperCase()}.`;
@@ -1366,12 +1364,18 @@
   // checkpoint into actual rewards.
   // ══════════════════════════════════════════
 
-  // ── DASHBOARD VILLAGE PREVIEW ──
-  // Phase 0 has no real buildings yet, so this mirrors village.html's
-  // own placeholder grid — a small hint of "land you'll build on"
-  // rather than a plain link. Static content, so it only ever needs to
-  // render once (dashboard re-renders often, e.g. after every task
-  // action — no reason to regenerate identical markup each time).
+  // ══════════════════════════════════════════
+  // VILLAGE — SHELVED. See VILLAGE_DORMANT.md at the repo root for the
+  // full decision record. The two functions immediately below
+  // (renderVillagePreview, goToVillage) are DEFINED BUT NEVER CALLED —
+  // no HTML element points to them anymore. Left in place, not deleted,
+  // in case the feature is revisited later. Everything else in this
+  // "PHASE 0 — CROSS-PAGE SESSION SURVIVAL" block below is UNRELATED to
+  // this shelving and remains fully active: it protects every session
+  // (not just village-bound ones) against accidental refresh/close.
+  // ══════════════════════════════════════════
+
+  // DORMANT — no button calls this anymore (see block comment above).
   function renderVillagePreview() {
     const grid = $('dash-village-preview-grid');
     if (!grid || grid.children.length) return;
@@ -1394,9 +1398,9 @@
     if (_heartbeatInterval) { clearInterval(_heartbeatInterval); _heartbeatInterval = null; }
   }
 
-  // ── SANCTIONED NAVIGATION → VILLAGE ──
-  // The token is what separates "I clicked a button in the app" from
-  // "I closed the app". Issue it, then leave.
+  // DORMANT — no button calls this anymore (see block comment above).
+  // The mechanism it exercises (transfer tokens, nav hints) is still
+  // fully intact in sessionRuntime.js; this is just its only caller.
   function goToVillage() {
     Sound.click();
     if (SessionRuntime.read()) {
@@ -3146,8 +3150,11 @@
     });
 
     // ── VILLAGE (Phase 0: sanctioned cross-page navigation) ──
-    // Two entry points, both explicit in-app buttons — the only kind of
-    // navigation that does NOT count as running away.
+    // DORMANT (see VILLAGE_DORMANT.md) — both button IDs below were
+    // removed from index.html, so $(id) resolves to null for each and
+    // this loop is a harmless no-op. Left in place rather than deleted:
+    // if the village entry points ever come back, this is the one line
+    // that needs to exist for them to work again.
     ['btn-goto-village', 'btn-session-goto-village'].forEach(id => {
       const btn = $(id);
       if (btn) btn.addEventListener('click', goToVillage);

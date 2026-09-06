@@ -89,6 +89,7 @@ html, body {
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* ── RAIL — persistent nav + user status ──
@@ -7411,6 +7412,14 @@ body.is-resuming-session .offline-block {
    Used by the merciful-abandon payout, which is neither a success nor an
    error — you lost the session but kept the banked minutes. */
 .toast.warn { border-color: var(--yellow); border-left-color: var(--yellow); color: var(--yellow); }
+
+/* ══════════════════════════════════════════════════════
+   VILLAGE CSS — DORMANT. See VILLAGE_DORMANT.md at the repo root.
+   No HTML element references these classes anymore (the two buttons
+   that used them were removed from index.html). Left in place, not
+   deleted — if the feature comes back, restoring the HTML is enough,
+   no styling needs to be rewritten.
+   ══════════════════════════════════════════════════════ */
 
 /* ── Dashboard doorway card ── */
 .village-preview-card {

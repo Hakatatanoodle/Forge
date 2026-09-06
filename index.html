@@ -86,7 +86,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v14.4</span>
+        <span class="rail-version">FORGE v14.5</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -103,7 +103,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v14.4</span>
+          <span class="logo-version">v14.5</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -225,7 +225,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v14.4</span>
+          <span id="drawer-version" class="drawer-version">FORGE v14.5</span>
         </div>
       </div>
 
@@ -262,22 +262,18 @@
           </button>
         </div>
 
-        <!-- ══ VILLAGE PREVIEW ══
-             Deliberately NOT a rail nav item. village.html is a real
-             separate page, and every link to it has to issue a session
-             transfer token first (see goToVillage in app.js) — routing it
-             through the rail would invite a plain <a href> somewhere that
-             silently abandons a running session. -->
-        <button id="btn-goto-village" class="village-preview-card" type="button">
-          <div class="village-preview-header">
-            <span class="village-preview-label">🏘 YOUR VILLAGE</span>
-            <span class="village-preview-arrow">→</span>
-          </div>
-          <div id="dash-village-preview-grid" class="village-preview-grid">
-            <!-- Rendered by JS: mini empty-plot grid, mirrors village.html -->
-          </div>
-          <span class="village-preview-sub">Built from focused hours</span>
-        </button>
+        <!-- ══ VILLAGE — SHELVED, SEE VILLAGE_DORMANT.md ══
+             The dashboard preview card that used to sit here (button
+             #btn-goto-village, mini plot grid #dash-village-preview-grid)
+             has been intentionally removed from the live UI. The village
+             feature was fully built (village.html, villagePage.js) and
+             then shelved as a product decision — a rich building system
+             risked becoming a distraction competing with the actual
+             focus work FORGE exists for, rather than a lightweight
+             reward for it. See VILLAGE_DORMANT.md at the repo root for
+             the full reasoning and exactly what would need to change to
+             bring it back. The underlying files are untouched and still
+             functional if revisited; only this entry point is gone. -->
 
       </div>
 
@@ -447,10 +443,11 @@
         <!-- Mid-session plan trigger -->
         <button id="btn-open-plan-drawer" class="btn-plan-drawer-trigger">＋ ADD TASK TO GOAL</button>
 
-        <!-- Mid-session village peek. Safe to leave the page from here:
-             the click issues a transfer token, so the session survives
-             the hop and keeps checkpointing over on village.html. -->
-        <button id="btn-session-goto-village" class="btn-session-village">🏘 VIEW VILLAGE</button>
+        <!-- Village entry (#btn-session-goto-village) removed here — see
+             VILLAGE_DORMANT.md. The session-survives-navigation
+             mechanism it exercised (SessionRuntime transfer tokens) is
+             untouched and still protects any session against accidental
+             refresh/close; it just has nowhere to hand off to anymore. -->
 
       </div>
 
@@ -1164,7 +1161,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v14.4</div>
+  <div class="version-stamp">FORGE v14.5</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
