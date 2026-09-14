@@ -539,23 +539,129 @@
     }
   }
 
-  // ── Today's Quests — pending task queue with tap-to-set-objective ──
+  // ── Quests — scope-filtered task queue with tap-to-set-objective ──
+  //
+  // The panel is scoped, NOT a flat dump of every task in the vault:
+  //   today → scheduled today (or finished today)
+  //   week  → scheduled sometime this Mon–Sun (or finished this week)
+  //   all   → every quest, ever — the old behaviour
+  // Default is always TODAY: the dashboard answers "what now?", and an
+  // unscheduled quest or one parked on Friday is not "now".
+  const QUEST_SCOPES = ['today', 'week', 'all'];
+
+  const QUEST_SCOPE_META = {
+    today: { title: "TODAY'S QUESTS" },
+    week:  { title: "WEEKLY QUESTS"  },
+    all:   { title: 'ALL QUESTS'     }
+  };
+
+  let questScope = 'today';
+
+  function _validScope(s) {
+    return QUEST_SCOPES.indexOf(s) !== -1 ? s : 'today';
+  }
+
+  // Scheduled day of a task, 'YYYY-MM-DD', or null when unscheduled.
+  function _questDay(task) {
+    if (!task || !task.scheduledStart) return null;
+    return String(task.scheduledStart).slice(0, 10);
+  }
+
+  function _questCompletedDay(task) {
+    if (!task || !task.completedAt) return null;
+    return _localDateStr(new Date(task.completedAt));
+  }
+
+  // Monday 00:00 → Sunday 23:59:59.999 of the week containing `ref`.
+  function _weekBounds(ref) {
+    const start = Storage.startOfWeek(ref || new Date());
+    const end   = new Date(start);
+    end.setDate(end.getDate() + 7);
+    end.setMilliseconds(-1);
+    return { start: start, end: end };
+  }
+
+  function _dayInWeek(ds, bounds) {
+    if (!ds) return false;
+    const d = Storage.parseLocal(ds + 'T00:00:00');
+    return d >= bounds.start && d <= bounds.end;
+  }
+
+  // Does this quest belong in the given scope?
+  function _taskInScope(task, scope, today, bounds) {
+    if (scope === 'all') return true;
+    const sched = _questDay(task);
+    const done  = _questCompletedDay(task);
+    if (scope === 'today') {
+      // Scheduled for today, OR finished today (you did the work today even
+      // if it was parked on another date — it still counts as today's win).
+      return sched === today || done === today;
+    }
+    // week
+    return _dayInWeek(sched, bounds) || _dayInWeek(done, bounds);
+  }
+
+  function _questsInScope(scope) {
+    const today  = Storage.todayStr();
+    const bounds = _weekBounds(new Date());
+    return (state.tasks || []).filter(t => _taskInScope(t, scope, today, bounds));
+  }
+
+  // Small "when" chip on each row — the point of scoping is knowing WHEN.
+  function _questWhenLabel(task, scope) {
+    if (!task.scheduledStart) return { text: 'UNSCHEDULED', cls: 'is-unscheduled' };
+    const d    = Storage.parseLocal(task.scheduledStart);
+    const ds   = _localDateStr(d);
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const short = `${_MONTHS[d.getMonth()]} ${d.getDate()}`;
+    const today = Storage.todayStr();
+
+    if (ds === today) return { text: scope === 'today' ? time : `TODAY ${time}`, cls: '' };
+    if (scope === 'today') return { text: short, cls: '' };
+    if (scope === 'week')  return { text: `${_WEEKDAYS[d.getDay()]} ${time}`, cls: '' };
+    return { text: `${short} ${time}`, cls: '' };
+  }
+
+  const _MONTHS   = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const _WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
   function renderQuestList() {
     const list = $('quest-list');
     if (!list) return;
-    const tasks   = state.tasks || [];
+
+    // state.settings is the source of truth — it survives reloads and
+    // cloud syncs. Re-read on every render so a synced change lands.
+    if (state.settings && state.settings.questScope !== undefined) {
+      questScope = _validScope(state.settings.questScope);
+    }
+    const scope  = _validScope(questScope);
+    const tasks  = _questsInScope(scope);
     const pending = tasks.filter(t => !t.completed);
     const done    = tasks.length - pending.length;
 
-    // header progress "2/5 done"
-    const progress = $('quest-progress');
-    if (progress) progress.textContent = (done > 0) ? `${done}/${tasks.length} done` : '';
+    _renderQuestHeader(scope, tasks);
 
     const currentId = sessionContext.taskId;
 
     // ── Empty states ──
     if (!tasks.length) {
       const hasGoals = (state.goals || []).length > 0;
+      if (scope !== 'all' && (state.tasks || []).length) {
+        // Nothing in this window, but the vault isn't empty → point the way out.
+        const next = scope === 'today' ? 'week' : 'all';
+        const nextLabel = QUEST_SCOPE_META[next].title;
+        list.innerHTML = `
+          <div class="quest-empty">
+            <span class="quest-empty-text">${scope === 'today' ? 'NOTHING SCHEDULED TODAY' : 'NOTHING THIS WEEK'}</span>
+            <span class="quest-empty-sub">${scope === 'today'
+              ? 'Schedule work on the calendar, or jump to the week.'
+              : 'No quests scheduled in this week yet.'}</span>
+            <button class="btn-secondary btn-empty-alt" data-scope-jump="${next}">VIEW ${nextLabel} ▶</button>
+          </div>`;
+        const jump = list.querySelector('[data-scope-jump]');
+        if (jump) jump.addEventListener('click', () => setQuestScope(next));
+        return;
+      }
       if (hasGoals) {
         list.innerHTML = `
           <div class="quest-empty">
@@ -580,13 +686,25 @@
       return;
     }
 
-    // ── Quest rows — pending first, done struck-through at the bottom ──
-    const doneTasks = tasks.filter(t => t.completed);
-    list.innerHTML = [...pending, ...doneTasks].map(t => {
+    // ── Quest rows — pending first (in time order), done at the bottom ──
+    const byTime = (a, b) => {
+      const sa = a.scheduledStart || '~';
+      const sb = b.scheduledStart || '~';
+      if (sa === sb) return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      return sa < sb ? -1 : 1;
+    };
+    const doneTasks = tasks.filter(t => t.completed)
+      .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
+
+    const overdueDay = Storage.todayStr();
+    list.innerHTML = [...pending.sort(byTime), ...doneTasks].map(t => {
       const pillar    = getPillarById(t.tag);
       const starCount = { 1: 1, 1.5: 2, 2: 3 }[t.xpMultiplier || 1] || 1;
       const stars     = '★'.repeat(starCount);
       const goal      = t.goalId ? (getGoalById(t.goalId)?.title || '') : '';
+      const when      = _questWhenLabel(t, scope);
+      const overdue   = !t.completed && _questDay(t) && _questDay(t) < overdueDay;
+      const whenCls   = overdue ? 'is-overdue' : when.cls;
       return `
         <button class="quest-item ${t.id === currentId ? 'selected' : ''} ${t.completed ? 'is-done' : ''}" data-task-id="${t.id}">
           <span class="quest-dot" style="background:${pillar.color};box-shadow:0 0 6px ${pillar.color}"></span>
@@ -595,14 +713,13 @@
               <span class="quest-text">${escHtml(t.text)}</span>
               <span class="quest-xp">${t.completed ? '✓' : `+${_estimateXP(t)} XP`}</span>
             </div>
-            ${goal ? `
             <div class="quest-row-bottom">
-              <span class="quest-goal">▸ ${escHtml(goal)}</span>
-              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
-            </div>` : `
-            <div class="quest-row-bottom quest-row-bottom-nogoal">
-              <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
-            </div>`}
+              ${goal ? `<span class="quest-goal">▸ ${escHtml(goal)}</span>` : ''}
+              <span class="quest-meta">
+                <span class="quest-when ${whenCls}">${when.text}</span>
+                <span class="quest-stars" style="color:${pillar.color}">${stars}</span>
+              </span>
+            </div>
           </div>
         </button>`;
     }).join('');
@@ -615,6 +732,95 @@
         Sound.click();
         flashElement(item, 'Objective set');
       });
+    });
+  }
+
+  // ── Quest scope header — title + per-scope pending counts ──
+  function _renderQuestHeader(scope, scopedTasks) {
+    const title = $('quest-scope-title');
+    if (title) title.textContent = QUEST_SCOPE_META[scope].title;
+
+    const done    = scopedTasks.filter(t => t.completed).length;
+    const total   = scopedTasks.length;
+    const pending = total - done;
+
+    // header progress "2/5 done" — scoped, so it never counts the whole vault
+    const progress = $('quest-progress');
+    if (progress) progress.textContent = (done > 0) ? `${done}/${total} done` : '';
+
+    // menu counts — so an empty TODAY visibly points at where the work lives
+    QUEST_SCOPES.forEach(s => {
+      const el = document.querySelector(`[data-count-for="${s}"]`);
+      if (!el) return;
+      const n = (s === scope) ? pending : _questsInScope(s).filter(t => !t.completed).length;
+      el.textContent = n ? String(n) : '—';
+      el.classList.toggle('is-zero', n === 0);
+      const opt = el.closest('.quest-scope-option');
+      if (opt) {
+        opt.classList.toggle('is-active', s === scope);
+        opt.setAttribute('aria-selected', s === scope ? 'true' : 'false');
+      }
+    });
+  }
+
+  // ── Scope switch (dropdown) ──
+  function setQuestScope(scope) {
+    const next = _validScope(scope);
+    if (next === questScope) { closeQuestScopeMenu(); return; }
+    questScope = next;
+    // Remember the choice; TODAY is the default for any save that predates it.
+    if (state.settings) state.settings.questScope = next;
+    saveState();
+    closeQuestScopeMenu();
+    renderQuestList();
+    Sound.click();
+  }
+
+  function openQuestScopeMenu() {
+    const menu = $('quest-scope-menu');
+    const btn  = $('btn-quest-scope');
+    if (!menu || !btn) return;
+    menu.classList.remove('hidden');
+    btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeQuestScopeMenu() {
+    const menu = $('quest-scope-menu');
+    const btn  = $('btn-quest-scope');
+    if (menu) menu.classList.add('hidden');
+    if (btn) {
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function initQuestScope() {
+    questScope = _validScope(state.settings && state.settings.questScope);
+    const btn  = $('btn-quest-scope');
+    const menu = $('quest-scope-menu');
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (menu.classList.contains('hidden')) openQuestScopeMenu();
+      else closeQuestScopeMenu();
+    });
+
+    menu.querySelectorAll('.quest-scope-option').forEach(opt => {
+      opt.addEventListener('click', e => {
+        e.stopPropagation();
+        setQuestScope(opt.dataset.scope);
+      });
+    });
+
+    // Click anywhere else / Escape closes the menu
+    document.addEventListener('click', e => {
+      if (menu.classList.contains('hidden')) return;
+      if (!menu.contains(e.target) && !btn.contains(e.target)) closeQuestScopeMenu();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeQuestScopeMenu();
     });
   }
 
@@ -653,7 +859,13 @@
     input.value = '';
     renderDashboard();
     Sound.taskAdded();
-    showToast('QUEST ADDED ✓', 'success');
+
+    // Quick-add is unscheduled, so under a scoped view (TODAY / THIS WEEK)
+    // the new quest won't appear in the list. Say where it went rather than
+    // leaving the user with the old "I added a task and nothing happened".
+    const visible = _taskInScope(task, _validScope(questScope),
+                                 Storage.todayStr(), _weekBounds(new Date()));
+    showToast(visible ? 'QUEST ADDED ✓' : 'QUEST ADDED ✓ · UNSCHEDULED', 'success');
   }
 
   function deleteTask(id) {
@@ -2442,6 +2654,9 @@
   // EVENTS
   // ══════════════════════════════════════════
   function bindEvents() {
+
+    // ── QUESTS: scope dropdown (TODAY / THIS WEEK / ALL QUESTS) ──
+    initQuestScope();
 
     // ── ONBOARDING / AUTH ──
     const gBtn = $('btn-google-signin');

@@ -602,6 +602,7 @@ body.no-rail #rail { display: none !important; }
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 12px;
 }
 .quest-title {
@@ -609,6 +610,115 @@ body.no-rail #rail { display: none !important; }
   font-size: 10px;
   letter-spacing: 3px;
   color: var(--text-dim);
+}
+
+/* ── Quest scope dropdown — TODAY (default) / THIS WEEK / ALL QUESTS ── */
+.quest-scope {
+  position: relative;
+  flex-shrink: 0;
+}
+.quest-scope-btn {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  margin: -4px -8px;      /* keep the title optically aligned with the list */
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  transition: var(--transition);
+}
+.quest-scope-btn:hover,
+.quest-scope-btn.open {
+  color: var(--accent);
+  border-color: var(--border-light);
+  background: var(--bg-2);
+}
+.quest-scope-title { white-space: nowrap; }
+.quest-scope-caret {
+  font-size: 9px;
+  line-height: 1;
+  transition: transform .15s ease;
+}
+.quest-scope-btn.open .quest-scope-caret { transform: rotate(180deg); }
+
+.quest-scope-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -8px;
+  z-index: 40;
+  min-width: 190px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .6);
+  overflow: hidden;
+}
+.quest-scope-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  transition: var(--transition);
+}
+.quest-scope-option:last-child { border-bottom: none; }
+.quest-scope-option:hover { background: var(--bg-3); color: var(--text-primary); }
+.quest-scope-option.is-active {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+.quest-scope-count {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.quest-scope-count.is-zero { opacity: .45; }
+.quest-scope-option.is-active .quest-scope-count { color: var(--accent); opacity: 1; }
+
+/* "when" chip on each quest row — the whole point of scoping is WHEN */
+.quest-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.quest-when {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.quest-when.is-unscheduled { color: var(--yellow); opacity: .8; }
+.quest-when.is-overdue     { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.quest-item.is-done .quest-when { opacity: .6; }
+.btn-empty-alt {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 10px 14px;
 }
 .quest-progress {
   font-family: var(--font-mono);
@@ -698,9 +808,6 @@ body.no-rail #rail { display: none !important; }
   justify-content: space-between;
   gap: 8px;
   min-height: 16px;
-}
-.quest-row-bottom-nogoal {
-  justify-content: flex-end;
 }
 .quest-goal {
   font-family: var(--font-mono);

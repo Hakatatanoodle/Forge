@@ -168,7 +168,18 @@ setTimeout(async () => {
   await tryStep('dashboard still works', ()=>{
     d.getElementById('mode-forge').click();
     if(!d.getElementById('view-dashboard').classList.contains('active')) throw new Error('dash not active');
-    if(!d.querySelectorAll('#quest-list .quest-item').length) throw new Error('no quests');
+    if(!d.getElementById('quest-scope-title')) throw new Error('no quest scope dropdown');
+  });
+  await tryStep('quest list renders (ALL scope)', ()=>{
+    // Default is TODAY, and this fixture's work is parked on old dates —
+    // so widen to ALL before counting rows.
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="all"]').click();
+    if(!d.querySelectorAll('#quest-list .quest-item').length) throw new Error('no quests in ALL scope');
+    // back to the default scope for the steps that follow
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="today"]').click();
+    if(d.getElementById('quest-scope-title').textContent !== "TODAY'S QUESTS") throw new Error('did not return to TODAY');
   });
   await tryStep('task queue works', ()=>{
     d.getElementById('rail-tasks').click();
@@ -441,6 +452,179 @@ setTimeout(async () => {
       if (!lockedCard.classList.contains('locked')) throw new Error('unowned achievement avatar missing locked class');
       if (!lockedCard.querySelector('.av-tag-locked')) throw new Error('locked avatar missing requirement tag');
     }
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // QUEST SCOPE — TODAY (default) / THIS WEEK / ALL QUESTS
+  //
+  // The dashboard quest panel is scoped by SCHEDULED DATE, not a flat
+  // dump of every task in the vault. An unscheduled quest, or one
+  // parked on another day, is not "today". These fixtures are seeded
+  // relative to today so they never rot.
+  // ═══════════════════════════════════════════════════════
+
+  const scopeTexts = () => Array.from(d.querySelectorAll('#quest-list .quest-item .quest-text'))
+                                .map(e => e.textContent.trim());
+
+  await tryStep('seed quest-scope fixtures', async () => {
+    const S  = w.Storage;
+    const st = S.load();
+    st.settings = st.settings || {};
+    delete st.settings.questScope;          // fresh save → must default to TODAY
+
+    const now  = new Date();
+    const day  = off => { const x = new Date(now); x.setDate(x.getDate() + off); return S.dateStr(x); };
+    // A second day inside THIS week (Mon–Sun), never today itself:
+    // tomorrow if it stays in the week, otherwise yesterday.
+    const wkStart = S.startOfWeek(now).getTime();
+    const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
+    const yst = new Date(now); yst.setDate(yst.getDate() - 1);
+    const otherDay = (S.startOfWeek(tmr).getTime() === wkStart) ? day(1) : day(-1);
+
+    const mk = (text, date, completed) => Object.assign(S.taskDefaults(), {
+      id: S.uuid(), text, tag: 'academics', goalId: null,
+      completed: !!completed, xpMultiplier: 1,
+      createdAt: new Date().toISOString(),
+      completedAt: completed ? new Date().toISOString() : null,
+      scheduledStart: date ? date + 'T09:00:00' : null,
+      scheduledEnd:   date ? date + 'T10:00:00' : null
+    });
+
+    st.tasks = (st.tasks || []).filter(t => !/^SCOPE /.test(t.text || ''));
+    st.tasks.push(
+      mk('SCOPE TODAY',           day(0),    false),  // scheduled today, pending
+      mk('SCOPE TODAY DONE',      day(0),    true),   // scheduled today, finished
+      mk('SCOPE WEEK',            otherDay,  false),  // same week, different day
+      mk('SCOPE DONE TODAY',      day(-3),   true),   // parked elsewhere, FINISHED today
+      mk('SCOPE NEXT WEEK',       day(7),    false),  // outside this week
+      mk('SCOPE UNSCHEDULED',     null,      false)   // never scheduled
+    );
+    S.save(st);
+
+    d.getElementById('btn-offline-enter').click();   // reload in-memory state
+    await settle();
+    d.getElementById('mode-forge').click();
+    await settle();
+  });
+
+  await tryStep('default scope is TODAY', () => {
+    const title = d.getElementById('quest-scope-title');
+    if (!title) throw new Error('no scope title');
+    if (title.textContent !== "TODAY'S QUESTS") throw new Error('title=' + title.textContent);
+    const active = d.querySelector('.quest-scope-option.is-active');
+    if (!active || active.dataset.scope !== 'today') throw new Error('TODAY not marked active in menu');
+  });
+
+  await tryStep('TODAY shows only today\'s work', () => {
+    const texts = scopeTexts();
+    for (const want of ['SCOPE TODAY', 'SCOPE TODAY DONE', 'SCOPE DONE TODAY']) {
+      if (!texts.includes(want)) throw new Error('missing ' + want + ' → ' + texts.join('|'));
+    }
+    // The whole point of the change — these must NOT be in today's list:
+    for (const nope of ['SCOPE WEEK', 'SCOPE NEXT WEEK', 'SCOPE UNSCHEDULED']) {
+      if (texts.includes(nope)) throw new Error(nope + ' leaked into TODAY');
+    }
+    // Scoped progress counts only the rows actually listed (earlier fixtures
+    // scheduled+finished today legitimately sit in this scope too).
+    const rowCls = name => {
+      const el = Array.from(d.querySelectorAll('#quest-list .quest-item'))
+        .find(i => i.querySelector('.quest-text').textContent.trim() === name);
+      return el ? el.className : 'MISSING';
+    };
+    const rows     = d.querySelectorAll('#quest-list .quest-item').length;
+    const doneRows = d.querySelectorAll('#quest-list .quest-item.is-done').length;
+    if (d.getElementById('quest-progress').textContent !== `${doneRows}/${rows} done`) {
+      throw new Error('progress=' + d.getElementById('quest-progress').textContent +
+                      ' expected ' + doneRows + '/' + rows + ' done');
+    }
+    if (!/is-done/.test(rowCls('SCOPE TODAY DONE')))  throw new Error('completed quest not struck through');
+    if (!/is-done/.test(rowCls('SCOPE DONE TODAY')))  throw new Error('quest finished today not struck through');
+    if (/is-done/.test(rowCls('SCOPE TODAY')))        throw new Error('pending quest marked done');
+  });
+
+  await tryStep('THIS WEEK widens to the whole week', () => {
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="week"]').click();
+    const texts = scopeTexts();
+    if (d.getElementById('quest-scope-title').textContent !== 'WEEKLY QUESTS') {
+      throw new Error('title=' + d.getElementById('quest-scope-title').textContent);
+    }
+    for (const want of ['SCOPE TODAY', 'SCOPE WEEK', 'SCOPE DONE TODAY']) {
+      if (!texts.includes(want)) throw new Error('missing ' + want);
+    }
+    for (const nope of ['SCOPE NEXT WEEK', 'SCOPE UNSCHEDULED']) {
+      if (texts.includes(nope)) throw new Error(nope + ' leaked into THIS WEEK');
+    }
+  });
+
+  await tryStep('ALL QUESTS shows everything', () => {
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="all"]').click();
+    const texts = scopeTexts();
+    if (d.getElementById('quest-scope-title').textContent !== 'ALL QUESTS') {
+      throw new Error('title=' + d.getElementById('quest-scope-title').textContent);
+    }
+    for (const want of ['SCOPE TODAY', 'SCOPE WEEK', 'SCOPE NEXT WEEK', 'SCOPE UNSCHEDULED']) {
+      if (!texts.includes(want)) throw new Error('missing ' + want + ' in ALL');
+    }
+  });
+
+  await tryStep('scope choice persists to storage + reload', async () => {
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="week"]').click();
+    if (w.Storage.load().settings.questScope !== 'week') throw new Error('not written to settings');
+    d.getElementById('btn-offline-enter').click();     // hard reload
+    await settle();
+    d.getElementById('mode-forge').click();
+    await settle();
+    if (d.getElementById('quest-scope-title').textContent !== 'WEEKLY QUESTS') {
+      throw new Error('scope not restored after reload: ' + d.getElementById('quest-scope-title').textContent);
+    }
+  });
+
+  await tryStep('empty TODAY offers a jump to THIS WEEK', async () => {
+    const S  = w.Storage;
+    const st = S.load();
+    const today = S.todayStr();
+    // strip everything that qualifies as "today" so the panel goes empty
+    st.tasks = (st.tasks || []).filter(t =>
+      String(t.scheduledStart || '').slice(0, 10) !== today &&
+      String(t.completedAt || '').slice(0, 10) !== today);
+    st.settings.questScope = 'today';
+    S.save(st);
+    d.getElementById('btn-offline-enter').click();
+    await settle();
+    d.getElementById('mode-forge').click();
+    await settle();
+
+    const empty = d.querySelector('#quest-list .quest-empty');
+    if (!empty) throw new Error('expected empty state, got rows: ' + scopeTexts().join('|'));
+    const jump = d.querySelector('[data-scope-jump="week"]');
+    if (!jump) throw new Error('no jump-to-week button in empty state');
+    jump.click();
+    await settle();
+    if (d.getElementById('quest-scope-title').textContent !== 'WEEKLY QUESTS') {
+      throw new Error('jump did not switch scope');
+    }
+    if (!scopeTexts().length) throw new Error('week scope empty after jump');
+  });
+
+  await tryStep('quick-add outside TODAY says where the quest went', async () => {
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="today"]').click();
+    await settle();
+    d.getElementById('btn-toggle-quick-add').click();
+    d.getElementById('input-task').value = 'SCOPE QUICK ADD';
+    d.getElementById('btn-add-task').click();
+    await settle();
+    const toast = d.getElementById('toast').textContent;
+    if (!/UNSCHEDULED/.test(toast)) throw new Error('toast=' + toast);
+    if (scopeTexts().includes('SCOPE QUICK ADD')) throw new Error('unscheduled quest leaked into TODAY');
+    // ...but it IS reachable from ALL QUESTS
+    d.getElementById('btn-quest-scope').click();
+    d.querySelector('.quest-scope-option[data-scope="all"]').click();
+    await settle();
+    if (!scopeTexts().includes('SCOPE QUICK ADD')) throw new Error('quick-added quest missing from ALL');
   });
 
   console.log(JSON.stringify(results,null,1));

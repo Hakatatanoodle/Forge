@@ -45,7 +45,8 @@ const Storage = (() => {
       soundEnabled: true,
       summaryDay: 0,        // 0=Sun,1=Mon...6=Sat — day to show weekly summary
       lastSummaryWeek: null, // 'YYYY-WNN' — last week summary was shown
-      railCollapsed: false  // desktop sidebar collapsed to icon-only rail
+      railCollapsed: false, // desktop sidebar collapsed to icon-only rail
+      questScope: 'today'   // dashboard quest filter: 'today' | 'week' | 'all'
     },
     pillars: [
       { id: 'academics', name: 'ACADEMICS', color: '#4caf7d', icon: '📚' },

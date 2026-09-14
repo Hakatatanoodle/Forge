@@ -225,10 +225,30 @@
       <!-- ══ SIDE COLUMN — quests · quick-add · focus stats ══ -->
       <div class="dashboard-side">
 
-        <!-- Today's Quests -->
+        <!-- Quests — scoped to TODAY (default) / THIS WEEK / ALL -->
         <div class="quest-section">
           <div class="quest-header">
-            <span class="quest-title">TODAY'S QUESTS</span>
+            <div class="quest-scope">
+              <button id="btn-quest-scope" class="quest-scope-btn" type="button"
+                      aria-haspopup="listbox" aria-expanded="false" aria-label="Quest scope">
+                <span id="quest-scope-title" class="quest-scope-title">TODAY'S QUESTS</span>
+                <span class="quest-scope-caret" aria-hidden="true">▾</span>
+              </button>
+              <div id="quest-scope-menu" class="quest-scope-menu hidden" role="listbox" aria-label="Quest scope">
+                <button class="quest-scope-option" type="button" role="option" data-scope="today">
+                  <span class="quest-scope-name">TODAY</span>
+                  <span class="quest-scope-count" data-count-for="today"></span>
+                </button>
+                <button class="quest-scope-option" type="button" role="option" data-scope="week">
+                  <span class="quest-scope-name">THIS WEEK</span>
+                  <span class="quest-scope-count" data-count-for="week"></span>
+                </button>
+                <button class="quest-scope-option" type="button" role="option" data-scope="all">
+                  <span class="quest-scope-name">ALL QUESTS</span>
+                  <span class="quest-scope-count" data-count-for="all"></span>
+                </button>
+              </div>
+            </div>
             <span id="quest-progress" class="quest-progress"></span>
           </div>
           <div id="quest-list" class="quest-list"></div>
