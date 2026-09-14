@@ -37,8 +37,8 @@ Answer the morning question — **"what do I do today?"** — in 3 seconds, and 
 │     ║   ▶  START SESSION   ║     │  ⬅ THE button · biggest thing on screen
 │     ╚══════════════════════╝     │
 │                                  │
-│  TODAY'S QUESTS   (2/5 done)     │
-│  [ACAD] revise ch. 3      ★      │
+│  TODAY'S QUESTS ▾  (2/5 done)    │  ⬅ dropdown: TODAY (default) / THIS WEEK / ALL
+│  [ACAD] revise ch. 3  09:00 ★    │
 │  [GAME] collision system  ★★★    │  ⬅ tap a quest → becomes the objective
 │  [OTHER] laundry          ★★     │
 │                                  │
@@ -63,15 +63,27 @@ This is the focal point. The one thing Forge exists to do.
 - **"⚡ X XP to next rank"** under the card — the "one more session" pull. Links the identity hook to the action.
 - **▶ START SESSION — the biggest element on screen**, in the lower-half thumb zone. One button, unmissable. Disabled only when no quest is set (never invisible).
 
-### 3. TODAY'S QUESTS list — from: Free Fire mission list + LinkedIn daily
+### 3. QUESTS list (TODAY / THIS WEEK / ALL) — from: Free Fire mission list + LinkedIn daily
 The "big chunk of goal divided into small chunks" (Q8) made visible.
-- Flat list of pending tasks: pillar color chip, text, difficulty stars.
+- Flat list of pending tasks: pillar color chip, text, difficulty stars, **"when" chip** (scheduled time, or UNSCHEDULED).
 - **Tap a quest → it becomes the objective** (updates the hero card, then START). This replaces the old "SWITCH" flow — fewer taps, no separate screen.
-- Header shows progress: **"(2/5 done)"** — a built-in "clear your quests = day done" moment, no scheduler needed.
+- Header shows progress: **"(2/5 done)"** — a built-in "clear your quests = day done" moment, no scheduler needed. The count is **scoped**, never the whole vault.
+
+#### Scope dropdown (header, replaces the static "TODAY'S QUESTS" label)
+| Scope | Shows | Why |
+|---|---|---|
+| **TODAY** *(default)* | Quests scheduled today, plus anything you **finished** today | The dashboard answers "what now?". An unscheduled quest, or one parked on Friday, is not *now*. |
+| **THIS WEEK** | Scheduled Mon–Sun of the current week, plus anything finished this week | The planning horizon — today empty doesn't mean the week is. |
+| **ALL QUESTS** | Every quest, ever | The old behaviour. The backlog view. |
+
+- Default is **TODAY**, always, on a fresh save. The chosen scope persists in `state.settings.questScope`.
+- Each menu row carries a **pending count**, so an empty TODAY visibly says where the work actually is.
+- Empty scoped state offers a one-tap jump to the next wider scope (TODAY → THIS WEEK → ALL) instead of a dead end.
+- Rows sort by scheduled time (unscheduled last), completed struck-through at the bottom. Overdue "when" chips go red.
 
 ### 4. + ADD QUEST (collapsed) — the loop's entry
 - One affordance at the bottom. Expands into input + pillar chips + difficulty + ADD (the existing quick-add, just tucked away so it doesn't compete with the hero).
-- On add: the task **instantly appears in TODAY'S QUESTS with a toast/flash** (Minecraft toast). This is the fix for "add a task → nothing happens."
+- On add: the task **instantly appears in the quest list with a toast/flash** (Minecraft toast). This is the fix for "add a task → nothing happens." Quick-add is unscheduled, so under the default TODAY scope the toast reads **"QUEST ADDED ✓ · UNSCHEDULED"** — it says where the quest went instead of silently not showing up.
 
 ---
 
@@ -103,6 +115,7 @@ Rail (left sidebar) stays as the persistent identity block: rank/name, XP bar, c
 ## Decisions (confirmed 2026-08-11)
 
 1. **"TODAY'S QUESTS" = pending queue.** Clearing the list = day done. ✅ User accepted for now, **expects to change later** (see Future changes).
+   - **Changed 2026-09-14:** the list is now **scoped by scheduled date** (TODAY / THIS WEEK / ALL QUESTS, dropdown in the header, TODAY default). A flat dump of every task made "today" meaningless — work scheduled for another day showed up as if it were today's.
 2. **Rank names — theme-dependent stays, but ANIME → One Piece themed.** ✅
 3. **Quest list: flat for v1.** Grouped under goals later (goal A → its tasks, goal B → its tasks). ✅
 
