@@ -4,7 +4,7 @@
 // Bump CACHE_VERSION when you deploy to force a full cache bust.
 // ═══════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'forge-v14-5';
+const CACHE_VERSION = 'forge-v14-6';
 const CACHE_NAME    = CACHE_VERSION;
 
 // village.html is pre-cached alongside index.html on purpose: it is a real

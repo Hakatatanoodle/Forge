@@ -625,13 +625,54 @@
     }
   }
 
+  // ── Quest list filter — TODAY (default) / WEEKLY / ALL ──
+  // Resets to 'today' on every fresh load, deliberately not persisted —
+  // the person asked for today to be the default state, not "whatever
+  // I last had selected". Same pattern as _lbActiveMetric for the
+  // leaderboard tabs.
+  let _questFilterMode = 'today';
+
+  // Returns only the tasks relevant to the current filter. 'today' and
+  // 'weekly' both require a real scheduledStart — an unscheduled task
+  // isn't "today's" or "this week's" anything, it's just in the pool.
+  // 'all' is the original unfiltered behavior (everything, scheduled or
+  // not) — unchanged from before this feature existed.
+  function _filterTasksByQuestMode(tasks, mode) {
+    if (mode === 'all') return tasks;
+
+    if (mode === 'today') {
+      const todayStr = Storage.dateStr(new Date());
+      return tasks.filter(t => t.scheduledStart && String(t.scheduledStart).slice(0, 10) === todayStr);
+    }
+
+    if (mode === 'weekly') {
+      const weekStart = Storage.startOfWeek(new Date());
+      const weekStartStr = Storage.dateStr(weekStart);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const weekEndStr = Storage.dateStr(weekEnd);
+      return tasks.filter(t => {
+        if (!t.scheduledStart) return false;
+        const ds = String(t.scheduledStart).slice(0, 10);
+        return ds >= weekStartStr && ds <= weekEndStr;
+      });
+    }
+
+    return tasks;
+  }
+
   // ── Today's Quests — pending task queue with tap-to-set-objective ──
   function renderQuestList() {
     const list = $('quest-list');
     if (!list) return;
-    const tasks   = state.tasks || [];
-    const pending = tasks.filter(t => !t.completed);
-    const done    = tasks.length - pending.length;
+
+    const filterSelect = $('quest-filter-select');
+    if (filterSelect) filterSelect.value = _questFilterMode;
+
+    const allTasks = state.tasks || [];
+    const tasks    = _filterTasksByQuestMode(allTasks, _questFilterMode);
+    const pending  = tasks.filter(t => !t.completed);
+    const done     = tasks.length - pending.length;
 
     // header progress "2/5 done"
     const progress = $('quest-progress');
@@ -640,7 +681,7 @@
     const currentId = sessionContext.taskId;
 
     // ── Empty states ──
-    if (!tasks.length) {
+    if (!allTasks.length) {
       const hasGoals = (state.goals || []).length > 0;
       if (hasGoals) {
         list.innerHTML = `
@@ -663,6 +704,19 @@
           openPlanTab('objectives');
         });
       }
+      return;
+    }
+
+    // Real tasks exist elsewhere, just none match the current filter —
+    // a different message than "you have nothing at all", pointing at
+    // the actual fix (schedule something, or switch the filter).
+    if (!tasks.length) {
+      const filterLabel = _questFilterMode === 'today' ? 'TODAY' : 'THIS WEEK';
+      list.innerHTML = `
+        <div class="quest-empty">
+          <span class="quest-empty-text">NOTHING SCHEDULED ${filterLabel}</span>
+          <span class="quest-empty-sub">Schedule a task in Calendar, or switch to ALL QUESTS above.</span>
+        </div>`;
       return;
     }
 
@@ -3026,6 +3080,11 @@
         Sound.click();
         renderLeaderboardView(tab.dataset.metric);
       });
+    });
+    $('quest-filter-select') && $('quest-filter-select').addEventListener('change', (e) => {
+      Sound.click();
+      _questFilterMode = e.target.value;
+      renderQuestList();
     });
     $('rail-settings') && $('rail-settings').addEventListener('click', () => {
       renderSettings(); renderAccountInfo(); showView('settings'); setRailNav('settings');

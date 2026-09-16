@@ -86,7 +86,7 @@
       </nav>
 
       <div class="rail-footer">
-        <span class="rail-version">FORGE v14.5</span>
+        <span class="rail-version">FORGE v14.6</span>
         <button id="btn-toggle-rail" class="rail-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">◀</button>
       </div>
 
@@ -103,7 +103,7 @@
         <div class="forge-logo">
           <span class="logo-text">FORGE</span>
           <span class="logo-sub">EXECUTION ENGINE</span>
-          <span class="logo-version">v14.5</span>
+          <span class="logo-version">v14.6</span>
         </div>
         <div class="onboard-tagline">Stop planning.<br/>Start building.</div>
 
@@ -225,7 +225,7 @@
           </button>
         </nav>
         <div class="drawer-footer">
-          <span id="drawer-version" class="drawer-version">FORGE v14.5</span>
+          <span id="drawer-version" class="drawer-version">FORGE v14.6</span>
         </div>
       </div>
 
@@ -283,7 +283,14 @@
         <!-- Today's Quests -->
         <div class="quest-section">
           <div class="quest-header">
-            <span class="quest-title">TODAY'S QUESTS</span>
+            <div class="quest-filter-wrap">
+              <select id="quest-filter-select" class="quest-filter-select">
+                <option value="today">TODAY'S QUESTS</option>
+                <option value="weekly">WEEKLY QUESTS</option>
+                <option value="all">ALL QUESTS</option>
+              </select>
+              <span class="quest-filter-arrow">▾</span>
+            </div>
             <span id="quest-progress" class="quest-progress"></span>
           </div>
           <div id="quest-list" class="quest-list"></div>
@@ -1161,7 +1168,7 @@
   </div><!-- /app -->
 
   <!-- Version stamp -->
-  <div class="version-stamp">FORGE v14.5</div>
+  <div class="version-stamp">FORGE v14.6</div>
 
   <!-- XP Float Particle -->
   <div id="xp-particle" class="xp-particle hidden"></div>
